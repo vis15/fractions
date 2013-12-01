@@ -1,0 +1,42 @@
+bool MainWindow::txtChange(GdkEventKey* key, Gtk::Entry& entry, bool override)
+{
+	if(key->keyval == 65288) //Gdk number for backspace
+		return false;
+	
+	int txt_length = entry.get_text_length();
+	int txtl_p = txt_length_to_pix(txt_length);
+	
+	if(entry.get_allocated_width() > txtl_p) //txtbox is big enough already from Mainwindow
+		return false;
+	
+	if(txt_length < kchar_limit_)
+		return false;
+	
+	if(override)
+		txt_ans_.set_size_request(entry.get_width() + charToPixals(kchars_width_), -1);
+	
+	entry.set_size_request(entry.get_width() + charToPixals(kchars_width_), -1);
+	
+	return false;
+}
+
+void MainWindow::txtDelete(int start_pos, int end_pos, Gtk::Entry& entry, bool override)
+{
+	int txt_length = entry.get_text_length();
+//		
+//	if(txt_length < kchar_limit_)
+//		return;
+//		
+//	if(override)
+//		txt_ans_.set_size_request(entry.get_width() - charToPixals(kchars_width_), -1);
+//	
+//	entry.set_size_request(entry.get_width() - charToPixals(kchars_width_), -1);
+		
+	if(txt_length < kchar_limit_)
+		entry.set_size_request(default_txtbox_size_, -1);
+}
+
+inline cint MainWindow::charToPixals(cint chars) const
+{
+	return kavg_char_size * chars;
+}
