@@ -9,6 +9,13 @@
 namespace Math
 {
 
+namespace ColorsHTML
+{
+
+constr kPurple() { return "#703D8F"; }
+constr kDPurple() { return "#4F0B78"; }
+
+} //namespace ColorsHTML
 namespace Parser
 {
 

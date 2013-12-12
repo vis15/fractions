@@ -40,3 +40,76 @@ inline cint MainWindow::charToPixals(cint chars) const
 {
 	return kavg_char_size * chars;
 }
+
+void MainWindow::boxMainChange(Gtk::Allocation& a)
+{
+//	if(txt_length_to_pix(txt_exp_.get_text_length()) > txt_exp_.get_width())
+//		return;
+	
+	if(update_text_ == true)
+	{
+		update_text_ = false;
+		return;
+	}
+	
+	if(win_width_ < get_width())
+	{
+		//todo: with a loop?
+		txt_exp_.set_size_request(txt_exp_.get_width() + getSize(a.get_width() - win_width_), -1);
+		txt_ans_.set_size_request(txt_ans_.get_width() + getSize(a.get_width() - win_width_), -1);
+		win_width_ = a.get_width();
+	}
+	else if (win_width_ > get_width())
+	{
+		txt_exp_.set_size_request(txt_exp_.get_width() - getSize(win_width_ - a.get_width()), -1);
+		txt_ans_.set_size_request(txt_ans_.get_width() - getSize(win_width_ - a.get_width()), -1);
+		win_width_ = a.get_width();
+	}
+
+}
+
+Gtk::TextBuffer::iterator it = buffer_input_->begin();
+	Glib::RefPtr<Gtk::TextChildAnchor> refAnchor = buffer_input_->create_child_anchor(it);
+	Gtk::Label* lbl = Gtk::manage(new Gtk::Label("> "));
+	txt_view_i_.add_child_at_anchor(*lbl, refAnchor);
+	
+//void MainWindow::setWidthChars(Gtk::Entry& entry)
+//{
+//	if(entry.get_text_length() < kchar_limit_)
+//	{
+//		entry.set_width_chars(kchar_limit_);
+//		return;
+//	}
+//	
+//	//Todo: bug: plus char doesn't work well
+//	entry.set_width_chars(entry.get_text_length());
+//	
+//	update_text_ = true;
+//}
+
+inline cint MainWindow::getSize(int diff) const
+{
+	if(diff == 1)
+		return 1;
+	else if(diff < 6)
+		return 2;
+	else if(diff < 11)
+		return 3;
+	else if(diff < 21)
+		return 10;
+	else if(diff < 31)
+		return 25;
+	else if(diff < 41)
+		return 35;
+	else if(diff < 51)
+		return 40;
+	else
+		return 60;
+	
+}
+
+inline cint MainWindow::txt_length_to_pix(cint txt_length) const
+{
+	return txt_length * 12;
+}
+	

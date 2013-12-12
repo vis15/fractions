@@ -106,6 +106,9 @@ constr Error::show(const ErrorName& error_name, constr opt_text, constr function
 		break;
 	case ErrorName::Unknown:
 		text = "Unknown Error";
+		break;
+	case ErrorName::None:
+		break;
 	}
 	
 	str err_msg = "Error: " + text;

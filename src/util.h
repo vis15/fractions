@@ -26,6 +26,18 @@ constr toString(T t)
 	return s.str();
 }
 
+template<typename Type>
+constr vecToString(std::vector<Type> data)
+{
+	str output = "";
+	for(uint i=0; i<data.size(); i++)
+	{
+		output += " " + Util::toString(data.at(i));
+	}
+	
+	return output;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////
 //Class Say
 ///////////////////////////////////////////////////////////////////////////////////////

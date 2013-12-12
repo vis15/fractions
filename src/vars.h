@@ -22,6 +22,7 @@ typedef const vstr cvstr;
 typedef const double condbl;
 typedef const long clong;
 typedef const int cint;
+typedef std::vector<uint> vuint;
 
 template <typename Type, typename Output> //T=type, O=output
 struct Sout //for returning multiple outputs
@@ -50,6 +51,19 @@ enum class MessageState
 {
 	kNone, kInfo, kWarning, kError
 };
+
+enum class Verbosity
+{
+	kNone, kError, kInfo, kDebug
+};
+
+namespace ColorsHTML
+{
+
+constr kPurple();
+constr kDPurple();
+
+} //namespace ColorsHTML
 
 namespace Util
 {
