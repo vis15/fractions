@@ -37,6 +37,7 @@ constr getMenu()
       </menu>
       <menu action="CalcMenu">
         <menuitem action="CalcCalc" />
+        <menuitem action="CalcFractions" />
       </menu>
       <menu action="HelpMenu">
         <menuitem action="HelpHelp" />

@@ -20,12 +20,21 @@ namespace Gui
 
 class MainWindow : public Gtk::Window
 {
+private:
+	struct TabData
+	{
+		str file;
+		str uri;
+		Glib::RefPtr<Gtk::TextBuffer> output_buffer;
+	};
+	
 public:
 	MainWindow(int argc, char* argv[]);
 	virtual ~MainWindow();
 	void updateStatus(constr& message, const MessageState& msg_state = MessageState::kNone);
 	void say(constr& message, const MessageState& msg_state = MessageState::kNone, const Verbosity& verbosity = Verbosity::kError); //Verbose error is lowest besides no verbosity
 	void newTab();
+	bool saveOutput(constr file);
 	
 protected:
 	void updateInputBox(const Gtk::TextBuffer::iterator&, const Glib::ustring&, int, Glib::RefPtr<Gtk::TextBuffer>, Glib::RefPtr<Gtk::TextBuffer>);
@@ -36,7 +45,10 @@ protected:
 	void removeTab(Gtk::Box&);
 	bool tabRightClick(GdkEventButton*, Glib::RefPtr<Gtk::TextBuffer>, Gtk::Box&);
 	void tabReorder(Widget*,guint);
-	void tabSwitch(Widget*,guint);
+	void tabSwitch(Widget*,guint, Glib::RefPtr<Gtk::TextBuffer>);
+	void saveOutputDialog();
+	bool saveFileExistDialog(constr file);
+	void fractionsToggle();
 	
 	Gtk::Box box_main_;
 	Gtk::Box* box_tabs_;
@@ -57,14 +69,25 @@ protected:
 	Glib::RefPtr<Gtk::TextBuffer::TagTable> tag_table_;
 	Gtk::EventBox* event_box_;
 	Gtk::Menu* tab_menu_;
+	Glib::RefPtr<Gtk::ToggleAction> menu_fractions_;
 	
 private:
 	void processArgs(int argc, char* argv[]);
 	void setupMenu();
 	void setMarkerTag();
-	void setupTabMenu(Gtk::Label&);
+	void setupTabMenu();
 	int nextTabNum();
-	constr updateTabNum(bool add, uint num);
+	constr updateTabNum(bool add, cuint num);
+	void save();
+	void saveOutputWrite(constr file);
+	bool getFirstSave();
+	void setFirstSave(Glib::RefPtr<Gtk::TextBuffer> output_buffer);
+	void removeFirstSave();
+	void removeFirstSave(cint);
+	inline cint getTabNum() const;
+	inline cint getTabNum(cint) const;
+	void updateMap(cint, TabData);
+	void updateSave();
 	
 	static constexpr cint kchar_limit_ = 19;
 	static constexpr cint kavg_char_size = 2;
@@ -77,8 +100,16 @@ private:
 	Verbosity verbosity_;
 	int win_width_;
 	vuint tab_numbers_;
-	int current_tab_;
-	int tab_reorder_call;
+	uint current_tab_ = 0;
+	uint tab_reorder_call_ = 0;
+	uint tab_count_ = 0;
+	str save_file_;
+	std::map<cuint, TabData> save_map_;
+	str current_dir_;
+	Glib::RefPtr<Gtk::TextBuffer> current_output_buffer_;
+	
+private:
+	typedef std::pair<cuint, TabData> pairis;
 };
 
 } //namespace Gui

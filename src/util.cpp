@@ -6,6 +6,8 @@
  */
 
 #include <iostream>
+#include <string>
+#include <fstream>
 
 #include "util.h"
 #include "mainwindow.h"
@@ -15,6 +17,34 @@ namespace Math
 
 namespace Util
 {
+
+struct matchPathSeparator
+{
+    bool operator()( char ch ) const
+    {
+        return ch == '/';
+    }
+};
+
+constr getFilename(constr file)
+{
+	return std::string(std::find_if(file.rbegin(), file.rend(), matchPathSeparator()).base(), file.end());
+}
+
+cint saveFile(constr file, constr text)
+{
+	std::ofstream outfile(file);
+	
+	if(! outfile.is_open()) 
+		return 1;
+	
+	outfile << text;
+	
+	outfile.close();
+	
+	return 0;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////
 //Class Say
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -94,15 +124,18 @@ Error::~Error()
 	// 
 }
 
-constr Error::show(const ErrorName& error_name, constr opt_text, constr function)
+constr Error::getMessage(const ErrorName& error_name, constr opt_text, constr function)
 {
-	error_name_ = error_name;
+	//todo Errors should be in a text file for ease of use and in8t
 	str text = "";
 	
 	switch(error_name)
 	{
 	case ErrorName::InvalidExpression:
 		text = "Invalid Expression";
+		break;
+	case ErrorName::NoFileOpen:
+		text = "File: " + opt_text + " could not be opened";
 		break;
 	case ErrorName::Unknown:
 		text = "Unknown Error";
@@ -130,7 +163,8 @@ int Error::getErrorValue()
 
 void Error::showThrow(const ErrorName& error_name, constr opt_text, constr function)
 {
-	throw show(error_name, opt_text, function);
+	error_name_ = error_name;
+	throw getMessage(error_name, opt_text, function);
 }
 
 } //namespace Util

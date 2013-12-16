@@ -11,6 +11,7 @@
 #include <string>
 #include <array>
 #include <vector>
+#include <map>
 
 namespace Math
 {
@@ -22,6 +23,7 @@ typedef const vstr cvstr;
 typedef const double condbl;
 typedef const long clong;
 typedef const int cint;
+typedef const uint cuint;
 typedef std::vector<uint> vuint;
 
 template <typename Type, typename Output> //T=type, O=output

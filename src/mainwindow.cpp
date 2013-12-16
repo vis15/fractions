@@ -6,6 +6,7 @@
  */
 
 #include <iostream>
+#include <fstream>
 
 #include "mainwindow.h"
 #include "parser.h"
@@ -67,12 +68,16 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupMenu()
 {
+	menu_fractions_ = Gtk::ToggleAction::create("CalcFractions", "Fractions: Enabled", "When checked fractions will be enabled");
+	menu_fractions_->set_active(true);
+	menu_fractions_->signal_toggled().connect(sigc::mem_fun(*this, &MainWindow::fractionsToggle));
+	
 	actiongrp_ = Gtk::ActionGroup::create();
 	actiongrp_->add(Gtk::Action::create("FileMenu", "File"));
 	actiongrp_->add(Gtk::Action::create_with_icon_name("FileNewWindow", "window-new", "_New Window", ""), Gtk::AccelKey("<control>N"));
 	actiongrp_->add(Gtk::Action::create("FileNewTab", Gtk::Stock::NEW, "New _Tab"), Gtk::AccelKey("<control>T"), sigc::mem_fun(*this, &MainWindow::newTab));
-	actiongrp_->add(Gtk::Action::create("FileSave", Gtk::Stock::SAVE));
-	actiongrp_->add(Gtk::Action::create("FileSaveAs", Gtk::Stock::SAVE_AS), Gtk::AccelKey("<control><shift>S"));
+	actiongrp_->add(Gtk::Action::create("FileSave", Gtk::Stock::SAVE, "_Save Output"), sigc::mem_fun(*this, &MainWindow::save));
+	actiongrp_->add(Gtk::Action::create("FileSaveAs", Gtk::Stock::SAVE_AS, "Save Output As..."), Gtk::AccelKey("<control><shift>S"), sigc::mem_fun(*this, &MainWindow::saveOutputDialog));
 	actiongrp_->add(Gtk::Action::create("FileCloseTab", Gtk::Stock::CLOSE, "Close Tab"), Gtk::AccelKey("<control>W"), sigc::mem_fun(*this, &MainWindow::removeCurrentTab));
 	actiongrp_->add(Gtk::Action::create("FileQuit", Gtk::Stock::QUIT));
 	actiongrp_->add(Gtk::Action::create("EditMenu", "Edit"));
@@ -80,7 +85,8 @@ void MainWindow::setupMenu()
 	actiongrp_->add(Gtk::Action::create("EditClearAll", Gtk::Stock::CLEAR, "Clear All"));
 	actiongrp_->add(Gtk::Action::create("EditPref", Gtk::Stock::PREFERENCES));
 	actiongrp_->add(Gtk::Action::create("CalcMenu", "Calculate"));
-	actiongrp_->add(Gtk::Action::create_with_icon_name("CalcCalc", "system-run", "Calculate", ""));
+	actiongrp_->add(Gtk::Action::create_with_icon_name("CalcCalc", "system-run", "Calculate", ""), Gtk::AccelKey("<release>Enter"));
+	actiongrp_->add(menu_fractions_);
 	actiongrp_->add(Gtk::Action::create("HelpMenu", "Help"));
 	actiongrp_->add(Gtk::Action::create("HelpHelp", Gtk::Stock::HELP));
 	actiongrp_->add(Gtk::Action::create("HelpAbout", Gtk::Stock::ABOUT));
@@ -107,6 +113,17 @@ void MainWindow::setupMenu()
 		box_main_.add(*menu);
 }
 
+void MainWindow::fractionsToggle()
+{
+	str label = "Fractions: ";
+	if(menu_fractions_->get_active())
+		label += "Enabled";
+	else
+		label += "Disabled";
+	
+	menu_fractions_->set_label(label);
+}
+
 //void MainWindow::btnOK()
 //{
 	
@@ -124,6 +141,7 @@ void MainWindow::setupMenu()
 
 void MainWindow::newTab()
 {
+	tab_count_++;
 	cint tab_num = nextTabNum();
 	updateTabNum(true, tab_num);
 	
@@ -141,7 +159,7 @@ void MainWindow::newTab()
 	tabs_.set_scrollable(true);
 	
 	box_tabs_ = Gtk::manage(new Gtk::Box);
-	setupTabMenu(*lbl);
+	setupTabMenu();
 	tabs_.append_page(*box_tabs_, *lbl_box);
 	tabs_.set_tab_reorderable(*box_tabs_, true);
 	tabs_.set_tab_detachable(*box_tabs_, true);
@@ -189,43 +207,51 @@ void MainWindow::newTab()
 	event_box_->signal_button_press_event().connect(sigc::bind<Glib::RefPtr<Gtk::TextBuffer>, Gtk::Box&>(sigc::mem_fun(*this, &MainWindow::tabRightClick), buffer_output_, *box_tabs_), false);
 
 	tabs_.signal_page_reordered().connect(sigc::mem_fun(*this, &MainWindow::tabReorder));
-	tabs_.signal_switch_page().connect(sigc::mem_fun(*this, &MainWindow::tabSwitch));
+	tabs_.signal_switch_page().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::tabSwitch), buffer_output_));
 	
 	lbl_box->show_all();
 	tabs_.show_all();
 	
 	say("Created New Tab: " + Util::toString(tab_num), MessageState::kInfo, Verbosity::kDebug);
+	
+	tabs_.set_current_page(tabs_.page_num(*box_tabs_));
+	
+	txt_view_i_->grab_focus();
+	
+	//setup saves
+	setFirstSave(buffer_output_);
 }
 
 void MainWindow::tabReorder(Widget* widget, guint page_num)
 {
-	tab_reorder_call++;
-	//std::cout << "tab reorder call: " << tab_reorder_call << std::endl;
-	if(tab_reorder_call == tabs_.get_n_pages()) //signal calls this function for each page, we only need the first call
-		tab_reorder_call = 0;
+	tab_reorder_call_++;
+	if(tab_reorder_call_ == tab_count_) //signal calls this function for each page including removed pages, we only need the first call
+		tab_reorder_call_ = 0;
 	
-	if(tab_reorder_call != 1)
+	if(tab_reorder_call_ != 1)
 		return;
 	
 	cint tab_num = tab_numbers_.at(current_tab_);
-//	std::cout << "current tab: " << current_tab_ << std::endl;
-//	std::cout << "Math: " << tab_num << std::endl;
 	tab_numbers_.erase(tab_numbers_.begin()+current_tab_);
 	tab_numbers_.insert(tab_numbers_.begin()+page_num, tab_num);
 	current_tab_ = page_num;
 	
-	str s = "";
-	for(uint i = 0; i<tab_numbers_.size(); i++)
-	{
-		s += " " + Util::toString(tab_numbers_.at(i));
-	}
-	std::cout << "new order: " << s << std::endl;
+	//std::cout << "new order: " << Util::vecToString(tab_numbers_) << std::endl;
 }
 
-void MainWindow::tabSwitch(Widget*,guint page_num)
+void MainWindow::tabSwitch(Widget*,guint page_num, Glib::RefPtr<Gtk::TextBuffer> buffer)
 {
+//	tab_switch_call_++;
+//	std::cout << "tab switch call: " << tab_switch_call_ << std::endl;
+//	if(tab_switch_call_ != page_num)
+//		return;
+//	
+//	tab_switch_call_ = -1;
+
 	current_tab_ = page_num;
-	std::cout << "tab switch current tab: " << page_num << std::endl;
+	//current_output_buffer_ = buffer;
+//	std::cout << "page_num: " << page_num << std::endl;
+//	std::cout << "output buffer: " << buffer->get_text() << std::endl;
 }
 
 void MainWindow::setMarkerTag()
@@ -238,7 +264,7 @@ void MainWindow::setMarkerTag()
 	tag_table_->add(tag_);
 }
 
-void MainWindow::setupTabMenu(Gtk::Label& label)
+void MainWindow::setupTabMenu()
 {
 	tab_menu_ = Gtk::manage(new Gtk::Menu);
 	Gtk::MenuItem* item = Gtk::manage(new Gtk::MenuItem("Save"));
@@ -351,13 +377,16 @@ void MainWindow::say(constr& message, const MessageState& msg_state /* = Message
 
 void MainWindow::removeCurrentTab() //right click close and menu close/ctrl+w
 {
+	removeFirstSave();
 	say("Closing Current Tab: " + updateTabNum(false, tabs_.get_current_page()), MessageState::kInfo, Verbosity::kDebug);
 	tabs_.remove_page(tabs_.get_current_page());
 }
 
 void MainWindow::removeTab(Gtk::Box& box) //tab button close
 {
-	say("Closing Tab: " + updateTabNum(false, tabs_.page_num(box)), MessageState::kInfo, Verbosity::kDebug);
+	cint page_num = tabs_.page_num(box);
+	removeFirstSave(page_num);
+	say("Closing Tab: " + updateTabNum(false, page_num), MessageState::kInfo, Verbosity::kDebug);
 	tabs_.remove_page(box);
 }
 
@@ -389,7 +418,7 @@ int MainWindow::nextTabNum()
 	return next_num;
 }
 
-constr MainWindow::updateTabNum(bool add, uint num)
+constr MainWindow::updateTabNum(bool add, cuint num)
 {
 	str r = "";
 	if(add == true)
@@ -399,11 +428,169 @@ constr MainWindow::updateTabNum(bool add, uint num)
 	}
 	else
 	{
-		r = Util::toString(tab_numbers_.at(num));
+		r = Util::toString(getTabNum(num));
 		tab_numbers_.erase(tab_numbers_.begin()+num);
 	}
 	
 	return r;
+}
+
+void MainWindow::setFirstSave(Glib::RefPtr<Gtk::TextBuffer> output_buffer)
+{
+	TabData sda;
+	sda.file = "";
+	sda.uri = "";
+	sda.output_buffer = output_buffer;
+			
+	save_map_.insert(pairis(getTabNum(), sda));
+}
+
+void MainWindow::updateSave()
+{
+	if(save_file_ == "none")
+		return;
+	getFirstSave();
+	
+	TabData sd;
+	sd.file = save_file_;
+	sd.uri = current_dir_;
+	sd.output_buffer = current_output_buffer_;
+	
+	updateMap(getTabNum(), sd);
+}
+
+bool MainWindow::getFirstSave()
+{
+	TabData sd = save_map_.at(getTabNum());
+	current_output_buffer_ = sd.output_buffer;
+	//std::cout << "sd.file: " << sd.file << std::endl;
+	if(sd.file == "")
+		return false;
+	
+	save_file_ = sd.file;
+	current_dir_ = sd.uri;
+	
+	return true;
+}
+
+void MainWindow::removeFirstSave()
+{
+	save_map_.erase(getTabNum());
+}
+
+void MainWindow::removeFirstSave(cint page_num)
+{
+	save_map_.erase(getTabNum(page_num));
+}
+
+void MainWindow::save()
+{
+	if(! getFirstSave())
+	{
+		saveOutputDialog();
+		updateSave();
+	}
+	else
+		saveOutputWrite(save_file_);
+}
+
+void MainWindow::saveOutputDialog()
+{
+	Gtk::FileChooserDialog save("Save Output", Gtk::FILE_CHOOSER_ACTION_SAVE);
+	save.set_transient_for(*this);
+	
+	save.add_button(Gtk::Stock::CANCEL, Gtk::RESPONSE_CANCEL);
+	save.add_button(Gtk::Stock::OK, Gtk::RESPONSE_OK);
+	
+	if(getFirstSave())
+		save.set_uri(current_dir_);
+	
+	bool done = false;
+	
+	while(! done)
+	{
+		cint response = save.run();
+		save_file_ = save.get_filename();
+		current_dir_ = save.get_uri();
+		
+		switch(response)
+		{
+		case Gtk::RESPONSE_OK:
+			done = saveOutput(save_file_);
+			break;
+		case Gtk::RESPONSE_CANCEL:
+			done = true;
+			save_file_ = "none";
+			break;
+		default:
+			std::cerr << "Unknown error in save dialog window response" << std::endl;
+			save_file_ = "none";
+			done = true;
+		}
+	}
+}
+
+bool MainWindow::saveOutput(constr file)
+{
+	std::ifstream checkfile(file);
+	
+	if(checkfile)
+	{
+		if(! saveFileExistDialog(file))
+			return false;
+	}
+	
+	checkfile.close();
+	
+	saveOutputWrite(file);
+	
+	return true;
+}
+
+void MainWindow::saveOutputWrite(constr file)
+{
+	cint rtn = Util::saveFile(file, current_output_buffer_->get_text());
+	
+	if(rtn != 0)
+		say(Util::Error::getMessage(Util::Error::ErrorName::NoFileOpen, file), MessageState::kError, Verbosity::kError);
+	else
+		say("Saved file " + Util::getFilename(save_file_) + " done", MessageState::kInfo, Verbosity::kNone);
+}
+
+bool MainWindow::saveFileExistDialog(constr file)
+{
+	constr filename = Util::getFilename(file);
+	constr str = "The file named \"" + filename + "\" already exist";
+	Gtk::MessageDialog exist(*this, str, false, Gtk::MessageType::MESSAGE_QUESTION, Gtk::ButtonsType::BUTTONS_YES_NO);
+	
+	exist.set_secondary_text("Do you want to replace it?");
+	
+	cint response = exist.run();
+	
+	switch(response)
+	{
+	case Gtk::RESPONSE_YES:
+		return true;
+	case Gtk::RESPONSE_NO:
+	default:
+		return false;
+	}
+}
+
+inline cint MainWindow::getTabNum() const
+{
+	return tab_numbers_.at(tabs_.get_current_page());
+}
+
+inline cint MainWindow::getTabNum(cint page_num) const
+{
+	return tab_numbers_.at(page_num);
+}
+
+void MainWindow::updateMap(cint num, TabData sd)
+{
+	save_map_.erase(num);
+	save_map_.insert(pairis(num, sd));
 }
 
 } //namespace Gui

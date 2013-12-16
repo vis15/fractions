@@ -32,11 +32,14 @@ constr vecToString(std::vector<Type> data)
 	str output = "";
 	for(uint i=0; i<data.size(); i++)
 	{
-		output += " " + Util::toString(data.at(i));
+		output += Util::toString(i) + ": " + Util::toString(data.at(i)) + "\n";
 	}
 	
 	return output;
 }
+
+constr getFilename(constr file);
+cint saveFile(constr file, constr text);
 
 ///////////////////////////////////////////////////////////////////////////////////////
 //Class Say
@@ -67,6 +70,7 @@ public:
 	{
 		None = 0,
 		InvalidExpression,
+		NoFileOpen,
 		Unknown = -1
 	};
 	
@@ -81,7 +85,7 @@ public:
 public:
 	Error(bool debug = false);
 	virtual ~Error();
-	constr show(const ErrorName& error_name, constr opt_text = "", constr function = "");
+	static constr getMessage(const ErrorName& error_name, constr opt_text = "", constr function = "");
 	int getErrorValue();
 	void showThrow(const ErrorName& error_name, constr opt_text = "", constr function = "");
 	
