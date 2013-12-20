@@ -9,6 +9,13 @@
 namespace Math
 {
 
+namespace Info
+{
+
+constr kProgName() { return "Fractions"; }
+
+} //namespace Info
+
 namespace ColorsHTML
 {
 

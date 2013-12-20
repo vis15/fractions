@@ -59,6 +59,13 @@ enum class Verbosity
 	kNone, kError, kInfo, kDebug
 };
 
+namespace Info
+{
+
+constr kProgName();
+
+} //namespace Info
+
 namespace ColorsHTML
 {
 

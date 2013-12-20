@@ -26,6 +26,7 @@ private:
 		str file;
 		str uri;
 		Glib::RefPtr<Gtk::TextBuffer> output_buffer;
+		str status_msg;
 	};
 	
 public:
@@ -49,6 +50,7 @@ protected:
 	void saveOutputDialog();
 	bool saveFileExistDialog(constr file);
 	void fractionsToggle();
+	bool keyPress(GdkEventKey*, Glib::RefPtr<Gtk::TextBuffer>, Glib::RefPtr<Gtk::TextBuffer>);
 	
 	Gtk::Box box_main_;
 	Gtk::Box* box_tabs_;
@@ -61,8 +63,7 @@ protected:
 	Gtk::TextView* txt_view_i_; //i = input
 	Glib::RefPtr<Gtk::TextBuffer> buffer_input_;
 	Glib::RefPtr<Gtk::TextBuffer> buffer_output_;
-	Gtk::TextBuffer::iterator buffer_it_;
-	Glib::RefPtr<Gtk::TextBuffer::Mark> buffer_mark_;
+	Glib::RefPtr<Gtk::TextBuffer> buffer_mark_;
 	Gtk::Statusbar statusbar_;
 	Gtk::Separator sep;
 	Glib::RefPtr<Gtk::TextBuffer::Tag> tag_;
@@ -70,6 +71,7 @@ protected:
 	Gtk::EventBox* event_box_;
 	Gtk::Menu* tab_menu_;
 	Glib::RefPtr<Gtk::ToggleAction> menu_fractions_;
+	Gtk::TextView* txt_view_mark_;
 	
 private:
 	void processArgs(int argc, char* argv[]);
@@ -104,9 +106,10 @@ private:
 	uint tab_reorder_call_ = 0;
 	uint tab_count_ = 0;
 	str save_file_;
-	std::map<cuint, TabData> save_map_;
+	std::map<cuint, TabData> tabdata_map_;
 	str current_dir_;
 	Glib::RefPtr<Gtk::TextBuffer> current_output_buffer_;
+	uint tab_switch_call_ = 0;
 	
 private:
 	typedef std::pair<cuint, TabData> pairis;

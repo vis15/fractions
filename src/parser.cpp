@@ -37,7 +37,6 @@ constr Parser::parse()
 {
 	//todo: more cout
 	//todo: another way to implement errors is by returning a struct with error or throw
-	signal_say.emit("Processing...", MessageState::kInfo);
 	
 	str output = "";
 	output = parenthesisReplace(exp_);
@@ -46,8 +45,6 @@ constr Parser::parse()
 	vstr voutput;
 	voutput = tokenize(output);
 	voutput = toRPN(voutput);
-	
-	signal_say.emit("Done", MessageState::kInfo);
 	
 	return vStrToStr(voutput);
 }

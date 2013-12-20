@@ -23,14 +23,14 @@ namespace Gui
 /////////////////////////////////////////////////////////////////////////
 //class MainWindow
 /////////////////////////////////////////////////////////////////////////
-constr MainWindow::kexp_marker_ = "> ";
+constr MainWindow::kexp_marker_ = ">";
 constr MainWindow::ktab_label_ = "Math ";
 
 MainWindow::MainWindow(int argc, char* argv[])
 {
 	processArgs(argc, argv);
 	
-	Gtk::Window::set_title("Fraction Program");
+	Gtk::Window::set_title(Info::kProgName());
 	Glib::RefPtr<Gdk::Pixbuf> pix = Gdk::Pixbuf::create_from_data(math_icon.pixel_data, Gdk::COLORSPACE_RGB, false, 8, math_icon.width, math_icon.height, math_icon.width*3);
 	this->set_icon(pix);
 	Gtk::Window::set_default_size(500, 500);
@@ -140,7 +140,7 @@ void MainWindow::fractionsToggle()
 //}
 
 void MainWindow::newTab()
-{
+{	
 	tab_count_++;
 	cint tab_num = nextTabNum();
 	updateTabNum(true, tab_num);
@@ -167,13 +167,31 @@ void MainWindow::newTab()
 	
 	scroll_win_ = Gtk::manage(new Gtk::ScrolledWindow);
 	box_tabs_->add(*scroll_win_);
+	
+	auto box_mark = Gtk::manage(new Gtk::Box);
+	box_tabs_->add(*box_mark);
+	txt_view_mark_ = Gtk::manage(new Gtk::TextView);
+	txt_view_mark_->set_margin_left(2);
+	txt_view_mark_->set_border_width(2);
+	txt_view_mark_->set_pixels_above_lines(2);
+	txt_view_mark_->set_editable(false);
+	txt_view_mark_->set_state_flags(Gtk::STATE_FLAG_FOCUSED);
+	txt_view_mark_->set_can_focus(false);
+	
+	setMarkerTag();
+	buffer_mark_ = Gtk::TextBuffer::create(tag_table_);
+	txt_view_mark_->set_buffer(buffer_mark_);
+	buffer_mark_->insert_with_tag(buffer_mark_->begin(), kexp_marker_, tag_);
+	
+	box_mark->pack_start(*txt_view_mark_, Gtk::PACK_SHRINK);
+	txt_view_mark_->set_size_request(0);
 	scroll_win_i_ = Gtk::manage(new Gtk::ScrolledWindow);
-	box_tabs_->add(*scroll_win_i_);
+	box_mark->pack_start(*scroll_win_i_);
 	
 	//Output box
 	txt_view_ = Gtk::manage(new Gtk::TextView);
 	txt_view_->set_can_focus(false);
-	txt_view_->set_border_width(3);
+	txt_view_->set_border_width(4);
 	txt_view_->set_editable(false);
 	txt_view_->set_state_flags(Gtk::STATE_FLAG_FOCUSED);
 	buffer_output_ = txt_view_->get_buffer();
@@ -184,23 +202,19 @@ void MainWindow::newTab()
 	
 	//Input box
 	txt_view_i_ = Gtk::manage(new Gtk::TextView);
-	txt_view_i_->set_border_width(3);
+	txt_view_i_->set_border_width(2);
+	txt_view_i_->set_margin_right(2);
+	txt_view_i_->set_pixels_above_lines(2);
 	
-	setMarkerTag();
 	buffer_input_ = txt_view_i_->get_buffer();
-	buffer_input_ = Gtk::TextBuffer::create(tag_table_);
 	txt_view_i_->set_buffer(buffer_input_);
 	scroll_win_i_->add(*txt_view_i_);
-	scroll_win_i_->set_shadow_type(Gtk::SHADOW_OUT);
 	
-	buffer_it_ = buffer_input_->begin();
-	buffer_mark_ = buffer_input_->create_mark(buffer_it_);
-	buffer_input_->insert_with_tag(buffer_mark_->get_iter(), kexp_marker_, tag_);
-	
+	//keeps the input box from going grey.
 	txt_view_i_->signal_event().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::inputEvent), txt_view_i_));
 	
-	buffer_input_->signal_insert().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::updateInputBox), buffer_input_, buffer_output_));
-	buffer_input_->signal_mark_set().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::setMark), txt_view_i_));
+	//connects buffer_input_ with buffer_output_ and checks for return/enter
+	txt_view_i_->signal_key_release_event().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::keyPress), buffer_input_, buffer_output_), false);
 	
 	button->signal_clicked().connect(sigc::bind<Gtk::Box&>(sigc::mem_fun(*this, &MainWindow::removeTab), *box_tabs_));
 
@@ -220,6 +234,35 @@ void MainWindow::newTab()
 	
 	//setup saves
 	setFirstSave(buffer_output_);
+	
+	updateStatus("");
+}
+
+bool MainWindow::keyPress(GdkEventKey* eventkey, Glib::RefPtr<Gtk::TextBuffer> buffer_input, Glib::RefPtr<Gtk::TextBuffer> buffer_output)
+{
+	if(eventkey->keyval != GDK_KEY_Return && eventkey->keyval != GDK_KEY_KP_Enter)
+		return false;
+	
+	//todo: this whole function can be a thread
+	say("Calculating...", MessageState::kInfo, Verbosity::kNone);
+	
+	Parser::Parser p(buffer_input->get_text(), debug_);
+	//p.signal_say.connect(sigc::mem_fun(*this, &MainWindow::say));
+
+	try
+	{
+		buffer_output->set_text(p.parse());
+		buffer_input->set_text("");
+	}
+	catch(constr& err_msg)
+	{
+		say(err_msg, MessageState::kError, Verbosity::kError);
+		return false;
+	}
+	
+	say("Done", MessageState::kInfo, Verbosity::kNone);
+	
+	return false;
 }
 
 void MainWindow::tabReorder(Widget* widget, guint page_num)
@@ -242,16 +285,15 @@ void MainWindow::tabReorder(Widget* widget, guint page_num)
 void MainWindow::tabSwitch(Widget*,guint page_num, Glib::RefPtr<Gtk::TextBuffer> buffer)
 {
 //	tab_switch_call_++;
-//	std::cout << "tab switch call: " << tab_switch_call_ << std::endl;
-//	if(tab_switch_call_ != page_num)
-//		return;
+//	if(tab_switch_call_ == tab_count_) //same as tabReorder
+//		tab_switch_call_ = 0;
 //	
-//	tab_switch_call_ = -1;
-
+//	if(tab_switch_call_ != 1)
+//		return;
+	
 	current_tab_ = page_num;
-	//current_output_buffer_ = buffer;
-//	std::cout << "page_num: " << page_num << std::endl;
-//	std::cout << "output buffer: " << buffer->get_text() << std::endl;
+	//TabData td = tabdata_map_.at(getTabNum());
+	
 }
 
 void MainWindow::setMarkerTag()
@@ -291,30 +333,11 @@ bool MainWindow::tabRightClick(GdkEventButton* event, Glib::RefPtr<Gtk::TextBuff
 	return false;
 }
 
-void MainWindow::updateInputBox(const Gtk::TextBuffer::iterator& it, const Glib::ustring& str, int len, Glib::RefPtr<Gtk::TextBuffer> buffer_input, Glib::RefPtr<Gtk::TextBuffer> buffer_output)
-{
-	if(str != "\n")
-		return;
-	
-	say("Calculating...", MessageState::kInfo, Verbosity::kNone);
-	buffer_output->set_text(buffer_input->get_text(true));
-	say("Done", MessageState::kInfo, Verbosity::kNone);
-	
-}
-
 bool MainWindow::inputEvent(GdkEvent* event, Gtk::TextView* txt_view)
 {
 	txt_view->set_state_flags(Gtk::STATE_FLAG_FOCUSED);
 		
 	return false;
-}
-
-void MainWindow::setMark(const Gtk::TextBuffer::iterator& it, const Glib::RefPtr<Gtk::TextBuffer::Mark>& mark, Gtk::TextView* txt_view)
-{
-	if(it.get_offset() < 2)
-		txt_view->set_editable(false);
-	else
-		txt_view->set_editable(true);
 }
 
 void MainWindow::updateStatus(constr& message, const MessageState& msg_state /* = MessageState::kNone */)
@@ -335,6 +358,10 @@ void MainWindow::updateStatus(constr& message, const MessageState& msg_state /* 
 	
 	statusbar_.override_color(color); //if not set each time color will stay the same
 	statusbar_.push(message, 1);
+	
+	TabData td = tabdata_map_.at(getTabNum());
+	td.status_msg = message;
+	updateMap(getTabNum(), td);
 }
 
 void MainWindow::processArgs(int argc, char* argv[])
@@ -372,7 +399,9 @@ void MainWindow::say(constr& message, const MessageState& msg_state /* = Message
 	
 	Util::Say s(debug_);
 	s.termDisplay(message, msg_state);
-	updateStatus(message, msg_state);
+	
+	if(verbosity != Verbosity::kDebug)
+		updateStatus(message, msg_state);
 }
 
 void MainWindow::removeCurrentTab() //right click close and menu close/ctrl+w
@@ -439,10 +468,10 @@ void MainWindow::setFirstSave(Glib::RefPtr<Gtk::TextBuffer> output_buffer)
 {
 	TabData sda;
 	sda.file = "";
-	sda.uri = "";
+	sda.uri = current_dir_;
 	sda.output_buffer = output_buffer;
 			
-	save_map_.insert(pairis(getTabNum(), sda));
+	tabdata_map_.insert(pairis(getTabNum(), sda));
 }
 
 void MainWindow::updateSave()
@@ -461,7 +490,7 @@ void MainWindow::updateSave()
 
 bool MainWindow::getFirstSave()
 {
-	TabData sd = save_map_.at(getTabNum());
+	TabData sd = tabdata_map_.at(getTabNum());
 	current_output_buffer_ = sd.output_buffer;
 	//std::cout << "sd.file: " << sd.file << std::endl;
 	if(sd.file == "")
@@ -475,12 +504,12 @@ bool MainWindow::getFirstSave()
 
 void MainWindow::removeFirstSave()
 {
-	save_map_.erase(getTabNum());
+	tabdata_map_.erase(getTabNum());
 }
 
 void MainWindow::removeFirstSave(cint page_num)
 {
-	save_map_.erase(getTabNum(page_num));
+	tabdata_map_.erase(getTabNum(page_num));
 }
 
 void MainWindow::save()
@@ -502,7 +531,8 @@ void MainWindow::saveOutputDialog()
 	save.add_button(Gtk::Stock::CANCEL, Gtk::RESPONSE_CANCEL);
 	save.add_button(Gtk::Stock::OK, Gtk::RESPONSE_OK);
 	
-	if(getFirstSave())
+	getFirstSave();
+	if(current_dir_ != "")
 		save.set_uri(current_dir_);
 	
 	bool done = false;
@@ -589,8 +619,8 @@ inline cint MainWindow::getTabNum(cint page_num) const
 
 void MainWindow::updateMap(cint num, TabData sd)
 {
-	save_map_.erase(num);
-	save_map_.insert(pairis(num, sd));
+	tabdata_map_.erase(num);
+	tabdata_map_.insert(pairis(num, sd));
 }
 
 } //namespace Gui

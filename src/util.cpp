@@ -64,15 +64,16 @@ void Say::display(constr& message, const MessageState& msg_state)
 
 void Say::termDisplay(constr& message, const MessageState& msg_state)
 {
+	constr start_str = Info::kProgName() + ": ";
 	switch(msg_state)
 	{
 	case MessageState::kInfo:
 	case MessageState::kNone:
-		std::cout << message << std::endl;
+		std::cout << start_str << message << std::endl;
 		break;
 	case MessageState::kWarning:
 	case MessageState::kError:
-		std::cerr << termColor(TerminalColors::kRed) << message << termColor(TerminalColors::kNone) << std::endl; //switch term color back
+		std::cerr << termColor(TerminalColors::kRed) << start_str << message << termColor(TerminalColors::kNone) << std::endl; //switch term color back
 		break;
 	}
 }
