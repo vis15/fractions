@@ -40,6 +40,7 @@ constr vecToString(std::vector<Type> data)
 
 constr getFilename(constr file);
 cint saveFile(constr file, constr text);
+void debugSay(constr msg);
 
 ///////////////////////////////////////////////////////////////////////////////////////
 //Class Say

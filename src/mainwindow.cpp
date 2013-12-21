@@ -124,23 +124,9 @@ void MainWindow::fractionsToggle()
 	menu_fractions_->set_label(label);
 }
 
-//void MainWindow::btnOK()
-//{
-	
-//	Parser::Parser p(txt_exp_.get_text(), debug_);
-//	p.signal_say.connect(sigc::mem_fun(*this, &MainWindow::say));
-//	try
-//	{
-//		txt_ans_.set_text(p.parse());
-//	}
-//	catch(constr& err_msg)
-//	{
-//		say(err_msg);
-//	}
-//}
-
 void MainWindow::newTab()
 {	
+	creating_tab_ = true;
 	tab_count_++;
 	cint tab_num = nextTabNum();
 	updateTabNum(true, tab_num);
@@ -236,6 +222,32 @@ void MainWindow::newTab()
 	setFirstSave(buffer_output_);
 	
 	updateStatus("");
+	creating_tab_ = false;
+}
+
+void MainWindow::setupTabMenu()
+{
+	tab_menu_ = Gtk::manage(new Gtk::Menu);
+	Gtk::MenuItem* item = Gtk::manage(new Gtk::MenuItem("Save"));
+	tab_menu_->append(*item);
+	item = Gtk::manage(new Gtk::MenuItem("Save As..."));
+	tab_menu_->append(*item);
+	Gtk::SeparatorMenuItem* separator = Gtk::manage(new Gtk::SeparatorMenuItem);
+	tab_menu_->append(*separator);
+	item = Gtk::manage(new Gtk::MenuItem("Close"));
+	item->signal_activate().connect(sigc::mem_fun(*this, &MainWindow::removeCurrentTab));
+	tab_menu_->append(*item);
+	tab_menu_->show_all();
+}
+
+void MainWindow::setMarkerTag()
+{
+	tag_ = Gtk::TextBuffer::Tag::create();
+	tag_->property_editable() = false;
+	Gdk::RGBA color_purple(ColorsHTML::kDPurple());
+	tag_->property_foreground_rgba() = color_purple;
+	tag_table_ = Gtk::TextBuffer::TagTable::create();
+	tag_table_->add(tag_);
 }
 
 bool MainWindow::keyPress(GdkEventKey* eventkey, Glib::RefPtr<Gtk::TextBuffer> buffer_input, Glib::RefPtr<Gtk::TextBuffer> buffer_output)
@@ -265,7 +277,7 @@ bool MainWindow::keyPress(GdkEventKey* eventkey, Glib::RefPtr<Gtk::TextBuffer> b
 	return false;
 }
 
-void MainWindow::tabReorder(Widget* widget, guint page_num)
+void MainWindow::tabReorder(Widget*, guint page_num)
 {
 	tab_reorder_call_++;
 	if(tab_reorder_call_ == tab_count_) //signal calls this function for each page including removed pages, we only need the first call
@@ -284,41 +296,19 @@ void MainWindow::tabReorder(Widget* widget, guint page_num)
 
 void MainWindow::tabSwitch(Widget*,guint page_num, Glib::RefPtr<Gtk::TextBuffer> buffer)
 {
-//	tab_switch_call_++;
-//	if(tab_switch_call_ == tab_count_) //same as tabReorder
-//		tab_switch_call_ = 0;
-//	
-//	if(tab_switch_call_ != 1)
-//		return;
+	tab_switch_call_++;
+	if(tab_switch_call_ == tab_count_) //same as tabReorder
+		tab_switch_call_ = 0;
+	
+	if(tab_switch_call_ != 1)
+		return;
 	
 	current_tab_ = page_num;
-	//TabData td = tabdata_map_.at(getTabNum());
 	
-}
-
-void MainWindow::setMarkerTag()
-{
-	tag_ = Gtk::TextBuffer::Tag::create();
-	tag_->property_editable() = false;
-	Gdk::RGBA color_purple(ColorsHTML::kDPurple());
-	tag_->property_foreground_rgba() = color_purple;
-	tag_table_ = Gtk::TextBuffer::TagTable::create();
-	tag_table_->add(tag_);
-}
-
-void MainWindow::setupTabMenu()
-{
-	tab_menu_ = Gtk::manage(new Gtk::Menu);
-	Gtk::MenuItem* item = Gtk::manage(new Gtk::MenuItem("Save"));
-	tab_menu_->append(*item);
-	item = Gtk::manage(new Gtk::MenuItem("Save As..."));
-	tab_menu_->append(*item);
-	Gtk::SeparatorMenuItem* separator = Gtk::manage(new Gtk::SeparatorMenuItem);
-	tab_menu_->append(*separator);
-	item = Gtk::manage(new Gtk::MenuItem("Close"));
-	item->signal_activate().connect(sigc::mem_fun(*this, &MainWindow::removeCurrentTab));
-	tab_menu_->append(*item);
-	tab_menu_->show_all();
+	if(creating_tab_ == true)
+		return;
+	
+	changeStatus(getStatus());
 }
 
 bool MainWindow::tabRightClick(GdkEventButton* event, Glib::RefPtr<Gtk::TextBuffer> buffer_output, Gtk::Box& close_tab)
@@ -333,7 +323,7 @@ bool MainWindow::tabRightClick(GdkEventButton* event, Glib::RefPtr<Gtk::TextBuff
 	return false;
 }
 
-bool MainWindow::inputEvent(GdkEvent* event, Gtk::TextView* txt_view)
+bool MainWindow::inputEvent(GdkEvent*, Gtk::TextView* txt_view)
 {
 	txt_view->set_state_flags(Gtk::STATE_FLAG_FOCUSED);
 		
@@ -341,7 +331,29 @@ bool MainWindow::inputEvent(GdkEvent* event, Gtk::TextView* txt_view)
 }
 
 void MainWindow::updateStatus(constr& message, const MessageState& msg_state /* = MessageState::kNone */)
+{
+	changeStatus(message, msg_state);
+	//Util::debugSay("update status");
+	
+	TabData td = getCurrentTabData();
+	td.status_msg = message;
+	updateMap(getTabNum(), td);
+}
+
+constr MainWindow::getStatus() const
+{
+	TabData td = getCurrentTabData();
+	return td.status_msg;
+}
+
+inline const MainWindow::TabData MainWindow::getCurrentTabData() const
+{
+	return tabdata_map_.at(getTabNum());
+}
+
+void MainWindow::changeStatus(constr& message, const MessageState& msg_state /* = MessageState::kNone */)
 {	
+	Util::debugSay("change status: " + message);
 	Gdk::RGBA color;
 	
 	switch(msg_state)
@@ -357,11 +369,7 @@ void MainWindow::updateStatus(constr& message, const MessageState& msg_state /* 
 	}
 	
 	statusbar_.override_color(color); //if not set each time color will stay the same
-	statusbar_.push(message, 1);
-	
-	TabData td = tabdata_map_.at(getTabNum());
-	td.status_msg = message;
-	updateMap(getTabNum(), td);
+	statusbar_.push(message);
 }
 
 void MainWindow::processArgs(int argc, char* argv[])
@@ -484,6 +492,7 @@ void MainWindow::updateSave()
 	sd.file = save_file_;
 	sd.uri = current_dir_;
 	sd.output_buffer = current_output_buffer_;
+	sd.status_msg = getStatus();
 	
 	updateMap(getTabNum(), sd);
 }
@@ -621,6 +630,7 @@ void MainWindow::updateMap(cint num, TabData sd)
 {
 	tabdata_map_.erase(num);
 	tabdata_map_.insert(pairis(num, sd));
+	//Util::debugSay("update map: message: " + sd.status_msg);
 }
 
 } //namespace Gui

@@ -32,7 +32,7 @@ private:
 public:
 	MainWindow(int argc, char* argv[]);
 	virtual ~MainWindow();
-	void updateStatus(constr& message, const MessageState& msg_state = MessageState::kNone);
+	void changeStatus(constr& message, const MessageState& msg_state = MessageState::kNone);
 	void say(constr& message, const MessageState& msg_state = MessageState::kNone, const Verbosity& verbosity = Verbosity::kError); //Verbose error is lowest besides no verbosity
 	void newTab();
 	bool saveOutput(constr file);
@@ -90,6 +90,9 @@ private:
 	inline cint getTabNum(cint) const;
 	void updateMap(cint, TabData);
 	void updateSave();
+	void updateStatus(constr& message, const MessageState& msg_state = MessageState::kNone);
+	constr getStatus() const;
+	inline const TabData getCurrentTabData() const;
 	
 	static constexpr cint kchar_limit_ = 19;
 	static constexpr cint kavg_char_size = 2;
@@ -110,6 +113,7 @@ private:
 	str current_dir_;
 	Glib::RefPtr<Gtk::TextBuffer> current_output_buffer_;
 	uint tab_switch_call_ = 0;
+	bool creating_tab_ = false;
 	
 private:
 	typedef std::pair<cuint, TabData> pairis;
