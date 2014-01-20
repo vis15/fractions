@@ -11,6 +11,7 @@
 #include <string>
 #include <array>
 #include <vector>
+#include <map>
 
 namespace Math
 {
@@ -22,7 +23,14 @@ typedef const vstr cvstr;
 typedef const double condbl;
 typedef const long clong;
 typedef const int cint;
+typedef const uint cuint;
 typedef std::vector<uint> vuint;
+typedef long long longl;
+typedef const longl clongl;
+typedef long double longd;
+typedef const longd clongd;
+
+constexpr cint kReturnError = -1;
 
 template <typename Type, typename Output> //T=type, O=output
 struct Sout //for returning multiple outputs
@@ -57,11 +65,19 @@ enum class Verbosity
 	kNone, kError, kInfo, kDebug
 };
 
+namespace Info
+{
+
+inline constr kProgName() { return "Fractions"; }
+
+} //namespace Info
+
 namespace ColorsHTML
 {
 
-constr kPurple();
-constr kDPurple();
+inline constr kPurple() { return "#703D8F"; }
+inline constr kDPurple() { return "#4F0B78"; }
+inline constr kBlue() { return "#0012FF"; }
 
 } //namespace ColorsHTML
 
@@ -86,23 +102,23 @@ union TermColorsInt
 
 } //namespace Util
 
-namespace Parser
-{
 
 constexpr char kSymbol[] = "+-*/^()";
 
-constr kStack_Init();
-constr kOpenParenthesisR();
-constr kCloseParenthesisR();
-constr kOpenParenthesisB();
-constr kCloseParenthesisB();
-constr kOpenParenthesisC();
-constr kCloseParenthesisC();
-constr kMuliply();
-constr kDivide();
-constr kAdd();
-constr kSubtract();
-constr kPower();
+inline constr kStack_Init() { return "$"; }
+inline constr kOpenParenthesisR() { return "("; }
+inline constr kCloseParenthesisR() { return ")"; }
+inline constr kOpenParenthesisB() { return "["; }
+inline constr kCloseParenthesisB() { return "]"; }
+inline constr kOpenParenthesisC() { return "{"; }
+inline constr kCloseParenthesisC() { return "}"; }
+inline constr kMuliply() { return "*"; }
+inline constr kDivide() { return "/"; }
+inline constr kAdd() { return "+"; }
+inline constr kSubtract() { return "-"; }
+inline constr kPower() { return "^"; }
+inline constr kDot() { return "."; }
+inline constr kSqrtRoot() { return "√"; }
 
 enum class Associative
 {
@@ -117,7 +133,28 @@ enum class Precedence : uint
 	kPower = 3
 };
 
-} //namespace Parser
+enum class FunctionDebug
+{
+	kParRep, kAddMul, kSubToAdd, kTokenize, kRPN, kCalc
+};
+
+inline namespace DefaultConfigVars
+{
+
+constexpr cint kwinposx = -1;
+constexpr cint kwinposy = -1;
+constexpr cint kwinsizel = -1;
+constexpr cint kwinsizew = -1;
+
+} // namespace DefaultConfigVars
+
+struct ConfigSettings
+{
+	int winposx = kwinposx;
+	int winposy = kwinposy;
+	int winsizel = kwinsizel;
+	int winsizew = kwinsizew;
+};
 
 } //namespace Math
 

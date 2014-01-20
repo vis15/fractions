@@ -23,7 +23,7 @@ namespace Math
 namespace Parser
 {
 
-Parser::Parser(constr& expression, bool debug) : exp_(expression), debug_(debug)
+Parser::Parser(constr& expression, bool fractions_enabled, bool debug) : exp_(expression), fractions_enabled_(fractions_enabled), debug_(debug)
 {
 	
 }
@@ -33,26 +33,35 @@ Parser::~Parser()
 	
 }
 
-constr Parser::parse()
+cvstr Parser::parse()
 {
 	//todo: more cout
 	//todo: another way to implement errors is by returning a struct with error or throw
-	signal_say.emit("Processing...", MessageState::kInfo);
 	
 	str output = "";
 	output = parenthesisReplace(exp_);
+	signal_debugoutput.emit(output, FunctionDebug::kParRep);
 	output = addMultiply(output);
+	signal_debugoutput.emit(output, FunctionDebug::kAddMul);
+	output = subToAdd(output);
+	signal_debugoutput.emit(output, FunctionDebug::kSubToAdd);
 	
 	vstr voutput;
-	voutput = tokenize(output);
+	
+	if(fractions_enabled_)
+		voutput = fractionTokenize(output);
+	else
+		voutput = tokenize(output);
+	
+	signal_debugoutput.emit(Util::vecToString(voutput), FunctionDebug::kTokenize);
+	
 	voutput = toRPN(voutput);
 	
-	signal_say.emit("Done", MessageState::kInfo);
-	
-	return vStrToStr(voutput);
+	return voutput;
+	//return vStrToStr(voutput);
 }
 
-cvstr Parser::tokenize(constr exp)
+cvstr Parser::fractionTokenize(constr& exp)
 {
 	vstr output;
 	
@@ -83,6 +92,10 @@ cvstr Parser::tokenize(constr exp)
 		else if(chr == kSubtract() && (isSymbol(lchr) || isParenthesis(lchr) || lchr == ""))
 		{
 			num += chr;
+		}
+		else if(chr == kAdd() && (isSymbol(lchr) || isParenthesis(lchr) || lchr == ""))
+		{
+			continue; //do not add + it's a duplicate
 		}
 		else
 		{
@@ -115,7 +128,49 @@ cvstr Parser::tokenize(constr exp)
 	return output;
 }
 
-constr Parser::addMultiply(constr exp)
+cvstr Parser::tokenize(constr& exp)
+{
+	vstr output;
+		
+	str num = "";
+	str out = "";
+	
+	for(uint i=0; i<exp.size(); i++)
+	{
+		str chr = Util::toString(exp.at(i)); 
+		str lchr = "";
+		if(i > 0)
+			lchr = Util::toString(exp.at(i-1));
+		
+		if(isNumeric(chr))
+		{
+			num += chr;
+		}
+		else if(chr == kSubtract() && (isSymbol(lchr) || isParenthesis(lchr) || lchr == ""))
+		{	
+			num += chr;
+		}
+		else if(chr == kAdd() && (isSymbol(lchr) || isParenthesis(lchr) || lchr == ""))
+		{
+			continue; //do not add + it's a duplicate
+		}
+		else
+		{
+			if(num != "")
+				output.push_back(num);
+			
+			output.push_back(chr);
+			num = "";
+		}
+	}
+	
+	 if(num != "") //push last number from the queue
+		output.push_back(num);
+	
+	return output;
+}
+
+constr Parser::addMultiply(constr& exp)
 {
 	str atmp = exp;
 	int k = 0; 
@@ -126,7 +181,7 @@ constr Parser::addMultiply(constr exp)
 
 		constr last_char = Util::toString(exp.at(i - 1));
 
-		if (isOpenParenthesis(chr) && isSymbol(last_char) == false) //i>0 = not first "("
+		if (isOpenParenthesis(chr) && (!isSymbol(last_char) && !isOpenParenthesis(last_char))) //i>0 = not first "("
 		{
 			atmp.insert(i + k, "*");
 			k++; //when adding '*' length of atmp increases by 1
@@ -136,7 +191,45 @@ constr Parser::addMultiply(constr exp)
 	return atmp;
 }
 
-cvstr Parser::toRPN(cvstr exp)
+/*
+ * Function: subToAdd(str& exp)
+ * 
+ * This function replaces multiple subtraction to addition
+ * example: 1--2 = 1+2
+ */
+constr Parser::subToAdd(str& exp)
+{
+	str output = "";
+	
+	uint i = 0;
+	while(exp.length() != 0)
+	{
+		str chr = Util::toString(exp.at(0));
+		str nchr = ""; //next char
+		if(exp.length() > 1)
+			nchr = Util::toString(exp.at(1));
+		
+		if(chr == kSubtract() && nchr == kSubtract())
+		{
+			output += kAdd();
+			exp.erase(1, 1);
+		}
+		else
+		{
+			output += chr;
+		}
+		
+		exp.erase(0, 1);
+//		cout << "exp: " << exp << endl;
+//		cout << "output: " << output << endl;
+		
+		i++;
+	}
+	
+	return output;
+}
+
+cvstr Parser::toRPN(cvstr& exp)
 {
 	//Todo: Make function that checks the validity of equation
 	//Todo: const
@@ -236,120 +329,7 @@ void Parser::setExp(constr& expression)
 	exp_=expression;
 }
 
-bool Parser::isOpenParenthesis(const str& token)
-{
-	if(token == kOpenParenthesisR() || token == kOpenParenthesisB() || token == kOpenParenthesisC())
-		return true;
-	
-	return false;
-}
-
-bool Parser::isCloseParenthesis(const str& token)
-{
-	if(token == kCloseParenthesisR() || token == kCloseParenthesisB() || token == kCloseParenthesisC())
-		return true;
-	
-	return false;
-}
-
-
-bool Parser::isParenthesis(const str& token)
-{
-	if(isOpenParenthesis(token) || isCloseParenthesis(token))
-		return true;
-	
-	return false;
-}
-
-bool Parser::isMulOrDivide(const str& token)
-{
-	if(token == kMuliply() || token == kDivide())
-		return true;
-	
-	return false;
-}
-
-bool Parser::isAddOrSub(const str& token)
-{
-	if(token == kAdd() || token == kSubtract())
-		return true;
-	
-	return false;
-}
-
-bool Parser::isPower(const str& token)
-{
-	if(token == kPower())
-		return true;
-	
-	return false;
-}
-
-bool Parser::isSymbol(const str& token)
-{
-	if(isAddOrSub(token) || isMulOrDivide(token) || isPower(token))
-		return true;
-	
-	return false;
-}
-
-bool Parser::isNumeric(const str& token)
-{
-	for(uint i=0; i<token.length(); i++)
-	{
-		const char num = token.at(i);
-		if(isdigit(num) == false)
-			return false;
-	}
-	
-	return true;
-}
-
-Precedence Parser::precedence(const str& token)
-{
-	if(isAddOrSub(token))
-		return Precedence::kAdd_Sub;
-	else if(isMulOrDivide(token))
-		return Precedence::kMul_Div;
-	else if(isPower(token))
-		return Precedence::kPower;
-	else
-		return Precedence::kUnknown;
-}
-
-Associative Parser::getAssociative(const str& token)
-{
-	if(isPower(token))
-		return Associative::kRight;
-	
-	return Associative::kLeft;
-}
-
-bool Parser::isLeftAssociative(Associative associative)
-{
-	if(associative == Associative::kLeft)
-		return true;
-	
-	return false;
-}
-
-bool Parser::isPrecedenceLess(const str& token, const str& otoken)
-{
-	if(precedence(token) < precedence(otoken))
-		return true;
-	
-	return false;
-}
-
-bool Parser::isPrecedenceEqual(const str& token, const str& otoken)
-{
-	if(precedence(token) == precedence(otoken))
-		return true;
-		
-	return false;
-}
-
-constr Parser::vStrToStr(vstr vec_str, int spos) //spos = start position
+constr Parser::vStrToStr(const vstr& vec_str, int spos) const //spos = start position
 {
 	str str = "";
 	
@@ -361,7 +341,7 @@ constr Parser::vStrToStr(vstr vec_str, int spos) //spos = start position
 	return str;
 }
 
-constr Parser::stackStrToStr(std::stack<str> stack_str)
+constr Parser::stackStrToStr(std::stack<str>& stack_str) const
 {
 	str str = "";
 	
@@ -374,14 +354,14 @@ constr Parser::stackStrToStr(std::stack<str> stack_str)
 	return str;
 }
 
-constr Parser::strReplace(str str, char old, char snew)
+constr Parser::strReplace(str& str, char old, char snew)
 {
 	std::replace(str.begin(), str.end(), old, snew);
 	
 	return str;
 }
 
-constr Parser::parenthesisReplace(str exp)
+constr Parser::parenthesisReplace(str& exp)
 {
 	exp = strReplace(exp, '[', '(');
 	exp = strReplace(exp, ']', ')');

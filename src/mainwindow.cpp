@@ -2,16 +2,20 @@
  * mainwindow.cpp
  *
  *  Created on: Nov 2, 2013
- *      Author: dis
+ *      Author: Timothy O'Connor
  */
 
 #include <iostream>
+#include <fstream>
+#include <algorithm> //std::remove
 
 #include "mainwindow.h"
-#include "parser.h"
+#include "Calculate.h"
 #include "util.h"
 #include "menu.h"
 #include "window_icon.h"
+#include "css.h"
+#include "version.h"
 
 namespace Math
 {
@@ -22,18 +26,31 @@ namespace Gui
 /////////////////////////////////////////////////////////////////////////
 //class MainWindow
 /////////////////////////////////////////////////////////////////////////
-constr MainWindow::kexp_marker_ = "> ";
+constr MainWindow::kexp_marker_ = ">";
 constr MainWindow::ktab_label_ = "Math ";
+constr MainWindow::kfractions_ = "Fractions: ";
+constr MainWindow::kenabled_ = "Enabled";
+constr MainWindow::kdisabled_ = "Disabled";
+constr MainWindow::kgcd_ = "GCD: ";
 
-MainWindow::MainWindow(int argc, char* argv[])
-{
+MainWindow::MainWindow(cint argc, const char* const* argv) : kargc_(argc), kargv_(argv)
+{	
 	processArgs(argc, argv);
 	
-	Gtk::Window::set_title("Fraction Program");
-	Glib::RefPtr<Gdk::Pixbuf> pix = Gdk::Pixbuf::create_from_data(math_icon.pixel_data, Gdk::COLORSPACE_RGB, false, 8, math_icon.width, math_icon.height, math_icon.width*3);
-	this->set_icon(pix);
-	Gtk::Window::set_default_size(500, 500);
-	//this->set_border_width(5);
+	Gtk::Window::set_title(Info::kProgName());
+	window_icon_ = Gdk::Pixbuf::create_from_data(math_icon.pixel_data, Gdk::COLORSPACE_RGB, false, 8, math_icon.width, math_icon.height, math_icon.width*3);
+	this->set_default_icon(window_icon_);
+	
+	config_.init(argv[0], debug_);
+	configsettings_ = config_.parseConfig();
+	setSettings();
+	
+	//setup CSS
+	auto css = Gtk::CssProvider::create();
+	css->load_from_data(getCss());
+	auto screen = Gdk::Screen::get_default();
+	auto ctx = this->get_style_context();
+	ctx->add_provider_for_screen(screen, css, GTK_STYLE_PROVIDER_PRIORITY_USER);
 	
 	//box_main
 	box_main_.set_orientation(Gtk::ORIENTATION_VERTICAL);
@@ -50,40 +67,104 @@ MainWindow::MainWindow(int argc, char* argv[])
 	newTab();
 
 	//setup statusbar
-	
+	Gtk::Separator sep;
 	box_main_.add(sep);
-	statusbar_.set_border_width(5);
-	box_main_.add(statusbar_);
+	
+	statusbar_.set_border_width(4);
+	
+	Gdk::RGBA color_purple(ColorsHTML::kDPurple());
+	fractions_enabled_.override_color(color_purple);
+	evtb_fractions_.add(fractions_enabled_);
+	evtb_fractions_.signal_button_press_event().connect(sigc::mem_fun(*this, &MainWindow::fractionsEnalbedClick));
+	evtb_fractions_.set_tooltip_text("Double click to enable and disable");
+	//when mouse enters event box/label
+	evtb_fractions_.signal_enter_notify_event().connect(sigc::mem_fun(*this, &MainWindow::fractionsEnabledEventEnter));
+	evtb_fractions_.signal_leave_notify_event().connect(sigc::mem_fun(*this, &MainWindow::fractionsEnabledEventLeave));
+	status_box_.pack_start(statusbar_);
+	
+	statusbar_fractions_.set_margin_right(15);
+	statusbar_fractions_.add(evtb_fractions_);
+	status_box_.pack_start(statusbar_fractions_, Gtk::PACK_SHRINK);
+	box_main_.pack_start(status_box_, Gtk::PACK_SHRINK);
+	
+	this->signal_focus_in_event().connect(sigc::mem_fun(*this, &MainWindow::mainWindowDrag));
 	
 	MainWindow::show_all_children();
+	
+	debugwin_ = 0; //when 0 debug window is not active
 	
 	txt_view_i_->grab_focus();
 }
 
 MainWindow::~MainWindow()
 {
+	//Util::debugSay("closing...");
+	shutingdown_ = true;
+	mainWindowResize();
+}
+
+void MainWindow::mainWindowResize()
+{
+	int l, w;
+	this->get_size(w, l);
+	configsettings_.winsizel = l;
+	configsettings_.winsizew = w;
+	config_.updateConfig(configsettings_);
+}
+
+bool MainWindow::mainWindowDrag(GdkEventFocus*)
+{
+	int x, y;
+	this->get_position(x,y);
+	configsettings_.winposx = x;
+	configsettings_.winposy = y;
+	config_.updateConfig(configsettings_);
 	
+	return false;
+}
+
+void MainWindow::setSettings()
+{
+	using namespace DefaultConfigVars;
+	if(configsettings_.winsizel != kwinsizel || configsettings_.winsizew != kwinsizew)
+		Gtk::Window::set_default_size(configsettings_.winsizew, configsettings_.winsizel);
+	else
+		this->set_default_size(500, 500);
+	
+	if(configsettings_.winposx != kwinposx || configsettings_.winposy != kwinposy)
+		this->move(configsettings_.winposx, configsettings_.winposy);
 }
 
 void MainWindow::setupMenu()
 {
+	menu_fractions_ = Gtk::Action::create_with_icon_name("CalcFractions", "system-run", kfractions_ + kenabled_, "When checked fractions will be enabled");
+	
+	fractions_menu_ = Gtk::Action::create("FractionsMenu", "Fractions");
+	menu_fractions_gcd_ = Gtk::Action::create("FractionsGCD", kgcd_ + kenabled_);
+	
 	actiongrp_ = Gtk::ActionGroup::create();
 	actiongrp_->add(Gtk::Action::create("FileMenu", "File"));
-	actiongrp_->add(Gtk::Action::create_with_icon_name("FileNewWindow", "window-new", "_New Window", ""), Gtk::AccelKey("<control>N"));
+	actiongrp_->add(Gtk::Action::create_with_icon_name("FileNewWindow", "window-new", "_New Window", ""), Gtk::AccelKey("<control>N"), sigc::mem_fun(*this, &MainWindow::newMainWindow));
 	actiongrp_->add(Gtk::Action::create("FileNewTab", Gtk::Stock::NEW, "New _Tab"), Gtk::AccelKey("<control>T"), sigc::mem_fun(*this, &MainWindow::newTab));
-	actiongrp_->add(Gtk::Action::create("FileSave", Gtk::Stock::SAVE));
-	actiongrp_->add(Gtk::Action::create("FileSaveAs", Gtk::Stock::SAVE_AS), Gtk::AccelKey("<control><shift>S"));
+	actiongrp_->add(Gtk::Action::create("FileSave", Gtk::Stock::SAVE, "_Save Output"), sigc::mem_fun(*this, &MainWindow::save));
+	actiongrp_->add(Gtk::Action::create("FileSaveAs", Gtk::Stock::SAVE_AS, "Save Output As..."), Gtk::AccelKey("<control><shift>S"), sigc::mem_fun(*this, &MainWindow::saveOutputDialog));
 	actiongrp_->add(Gtk::Action::create("FileCloseTab", Gtk::Stock::CLOSE, "Close Tab"), Gtk::AccelKey("<control>W"), sigc::mem_fun(*this, &MainWindow::removeCurrentTab));
-	actiongrp_->add(Gtk::Action::create("FileQuit", Gtk::Stock::QUIT));
+	actiongrp_->add(Gtk::Action::create("FileQuit", Gtk::Stock::QUIT), sigc::mem_fun(*this, &MainWindow::closeWindow));
 	actiongrp_->add(Gtk::Action::create("EditMenu", "Edit"));
-	actiongrp_->add(Gtk::Action::create("EditClearHistory", Gtk::Stock::CLEAR, "Clear History"));
-	actiongrp_->add(Gtk::Action::create("EditClearAll", Gtk::Stock::CLEAR, "Clear All"));
+	actiongrp_->add(Gtk::Action::create("EditClearHistory", Gtk::Stock::CLEAR, "Clear Tab History"), Gtk::AccelKey("<control><alt>C"), sigc::mem_fun(*this, &MainWindow::clearTabHistory));
+	actiongrp_->add(Gtk::Action::create("EditClearAll", Gtk::Stock::CANCEL, "Clear All Tabs"));
 	actiongrp_->add(Gtk::Action::create("EditPref", Gtk::Stock::PREFERENCES));
+	actiongrp_->add(Gtk::Action::create("ViewMenu", "View"));
+	actiongrp_->add(Gtk::Action::create("ViewDebugWin", Gtk::Stock::PROPERTIES, "Debug Window"), Gtk::AccelKey("<control><shift>D"), sigc::mem_fun(*this, &MainWindow::showDebugWin));
+	actiongrp_->add(fractions_menu_);
+	actiongrp_->add(menu_fractions_gcd_, sigc::mem_fun(*this, &MainWindow::gcdToggle));
 	actiongrp_->add(Gtk::Action::create("CalcMenu", "Calculate"));
-	actiongrp_->add(Gtk::Action::create_with_icon_name("CalcCalc", "system-run", "Calculate", ""));
+	actiongrp_->add(Gtk::Action::create("CalcCalc", Gtk::Stock::APPLY, "Calculate", ""), Gtk::AccelKey("<release>Enter"));
+	actiongrp_->add(menu_fractions_, Gtk::AccelKey("<control>F"), sigc::mem_fun(*this, &MainWindow::fractionsToggle));
 	actiongrp_->add(Gtk::Action::create("HelpMenu", "Help"));
 	actiongrp_->add(Gtk::Action::create("HelpHelp", Gtk::Stock::HELP));
-	actiongrp_->add(Gtk::Action::create("HelpAbout", Gtk::Stock::ABOUT));
+	actiongrp_->add(Gtk::Action::create("HelpUpdate", "Check for Updates"));
+	actiongrp_->add(Gtk::Action::create("HelpAbout", Gtk::Stock::ABOUT), sigc::mem_fun(*this, &MainWindow::showAboutWindow));
 	
 	uimanager_ = Gtk::UIManager::create();
 	uimanager_->insert_action_group(actiongrp_);
@@ -92,38 +173,128 @@ void MainWindow::setupMenu()
 	
 	try
 	{
-		uimanager_->add_ui_from_string(getMenu());
+		uimanager_->add_ui_from_string(getMainMenu());
 	}
 	catch(const Glib::Error& error)
 	{
-		say("uimanager failed: " + error.what(), MessageState::kError);
+		say("Error: Menu: uimanager failed: " + error.what(), MessageState::kError);
 		return;
 	}
 	
 	Gtk::Widget* menu = uimanager_->get_widget("/menu-main");
 	if(!menu)
-		say("menu get widget failed", MessageState::kError);
+		say("Error: Menu: get_widget failed", MessageState::kError);
 	else
 		box_main_.add(*menu);
 }
 
-//void MainWindow::btnOK()
-//{
+void MainWindow::newMainWindow()
+{
+	mainwindow_ = new MainWindow(kargc_, kargv_);
+	mainwindow_->show();
+}
+
+void MainWindow::fractionsToggle()
+{	
+	TabData td = getCurrentTabData();
 	
-//	Parser::Parser p(txt_exp_.get_text(), debug_);
-//	p.signal_say.connect(sigc::mem_fun(*this, &MainWindow::say));
-//	try
-//	{
-//		txt_ans_.set_text(p.parse());
-//	}
-//	catch(constr& err_msg)
-//	{
-//		say(err_msg);
-//	}
-//}
+	setFractionsEnabled(true);
+	
+	td.fractions_enabled = !(td.fractions_enabled);
+	updateMap(getTabNum(), td);
+}
+
+void MainWindow::setFractionsEnabled(bool toggle /* = false */)
+{
+	bool enabled = true;
+	
+	if(getFractionsEnabled())
+		enabled = true;
+	else
+		enabled = false;
+	
+	if(toggle)
+		enabled = !enabled;
+	
+	setFractionsMenuEnabled(enabled);
+}
+
+void MainWindow::setFractionsMenuEnabled(bool enabled)
+{
+	str label = kfractions_;
+	label += getEnabled(enabled);
+	
+	menu_fractions_->set_label(label);
+	fractions_enabled_.set_label(label);
+	setFractionsMenu(enabled);
+}
+
+bool MainWindow::getFractionsEnabled() const
+{
+	//Util::debugSay("get fractions en");
+	TabData td = getCurrentTabData();
+	return td.fractions_enabled;
+}
+
+bool MainWindow::fractionsEnalbedClick(GdkEventButton* event)
+{
+	if(event->type == GDK_2BUTTON_PRESS)
+		fractionsToggle();
+	
+	return false;
+}
+
+void MainWindow::setFractionsMenu(bool enabled)
+{
+	//fractions_menu_->set_sensitive(enabled);
+	menu_fractions_gcd_->set_sensitive(enabled);
+}
+
+void MainWindow::gcdToggle()
+{
+	gcd_enabled_ = !gcd_enabled_;
+	menu_fractions_gcd_->set_label(kgcd_ + getEnabled(gcd_enabled_));
+}
+
+constr MainWindow::getEnabled(bool enabled)
+{
+	if(enabled)
+		return kenabled_;
+	else
+		return kdisabled_;
+}
+
+bool MainWindow::fractionsEnabledEventEnter(GdkEventCrossing*)
+{
+	fractions_enabled_.set_use_markup();
+	fractions_enabled_.set_label("<u>" + fractions_enabled_.get_label() + "</u>");
+	return false;
+}
+
+bool MainWindow::fractionsEnabledEventLeave(GdkEventCrossing*)
+{
+	fractions_enabled_.set_use_markup();
+	fractions_enabled_.set_label(kfractions_ + getEnabled(getFractionsEnabled()));
+	return false;
+}
+
+void MainWindow::clearTabHistory()
+{
+	TabData td = getCurrentTabData();
+	td.output_buffer->set_text("");
+	
+	TabData ntd;
+	td.ans_history = ntd.ans_history;
+	td.exp_history = ntd.exp_history;
+	
+	updateMap(getTabNum(), td);
+	initHistory();
+}
 
 void MainWindow::newTab()
-{
+{	
+	creating_tab_ = true;
+	tab_count_++;
 	cint tab_num = nextTabNum();
 	updateTabNum(true, tab_num);
 	
@@ -133,15 +304,15 @@ void MainWindow::newTab()
 	lbl->set_text(ktab_label_ + Util::toString(tab_num));
 	event_box_->add(*lbl);
 	lbl_box->pack_start(*event_box_);
-	Gtk::Button* button = Gtk::manage(new Gtk::Button);
-	Gtk::Image* image = Gtk::manage(new Gtk::Image(Gtk::Stock::CLOSE, Gtk::ICON_SIZE_SMALL_TOOLBAR));
+	Gtk::Button* button = Gtk::manage(new Gtk::Button());
+	Gtk::Image* image = Gtk::manage(new Gtk::Image(Gtk::Stock::CLOSE, Gtk::ICON_SIZE_MENU));
 	button->add(*image);
 	lbl_box->pack_start(*button, Gtk::PACK_SHRINK);
 
 	tabs_.set_scrollable(true);
 	
 	box_tabs_ = Gtk::manage(new Gtk::Box);
-	setupTabMenu(*lbl);
+	setupTabMenu();
 	tabs_.append_page(*box_tabs_, *lbl_box);
 	tabs_.set_tab_reorderable(*box_tabs_, true);
 	tabs_.set_tab_detachable(*box_tabs_, true);
@@ -149,13 +320,32 @@ void MainWindow::newTab()
 	
 	scroll_win_ = Gtk::manage(new Gtk::ScrolledWindow);
 	box_tabs_->add(*scroll_win_);
+	
+	auto box_mark = Gtk::manage(new Gtk::Box);
+	box_tabs_->add(*box_mark);
+	txt_view_mark_ = Gtk::manage(new Gtk::TextView);
+	txt_view_mark_->set_margin_left(2);
+	txt_view_mark_->set_border_width(2);
+	txt_view_mark_->set_pixels_above_lines(2);
+	txt_view_mark_->set_editable(false);
+	txt_view_mark_->set_state_flags(Gtk::STATE_FLAG_FOCUSED);
+	txt_view_mark_->set_can_focus(false);
+	
+	//todo: no need for marker tag
+	setMarkerTag();
+	buffer_mark_ = Gtk::TextBuffer::create(tag_table_);
+	txt_view_mark_->set_buffer(buffer_mark_);
+	buffer_mark_->insert_with_tag(buffer_mark_->begin(), kexp_marker_, tag_);
+	
+	box_mark->pack_start(*txt_view_mark_, Gtk::PACK_SHRINK);
+	txt_view_mark_->set_size_request(0);
 	scroll_win_i_ = Gtk::manage(new Gtk::ScrolledWindow);
-	box_tabs_->add(*scroll_win_i_);
+	box_mark->pack_start(*scroll_win_i_);
 	
 	//Output box
 	txt_view_ = Gtk::manage(new Gtk::TextView);
 	txt_view_->set_can_focus(false);
-	txt_view_->set_border_width(3);
+	txt_view_->set_border_width(4);
 	txt_view_->set_editable(false);
 	txt_view_->set_state_flags(Gtk::STATE_FLAG_FOCUSED);
 	buffer_output_ = txt_view_->get_buffer();
@@ -163,69 +353,104 @@ void MainWindow::newTab()
 	scroll_win_->set_vexpand(true);
 	scroll_win_->set_shadow_type(Gtk::SHADOW_ETCHED_OUT);
 	scroll_win_->add(*txt_view_);
+	Pango::FontDescription font("monospace 10");
+	txt_view_->override_font(font);
 	
 	//Input box
 	txt_view_i_ = Gtk::manage(new Gtk::TextView);
-	txt_view_i_->set_border_width(3);
+	txt_view_i_->set_border_width(2);
+	txt_view_i_->set_margin_right(1);
+	txt_view_i_->set_pixels_above_lines(2);
 	
-	setMarkerTag();
 	buffer_input_ = txt_view_i_->get_buffer();
-	buffer_input_ = Gtk::TextBuffer::create(tag_table_);
 	txt_view_i_->set_buffer(buffer_input_);
 	scroll_win_i_->add(*txt_view_i_);
-	scroll_win_i_->set_shadow_type(Gtk::SHADOW_OUT);
 	
-	buffer_it_ = buffer_input_->begin();
-	buffer_mark_ = buffer_input_->create_mark(buffer_it_);
-	buffer_input_->insert_with_tag(buffer_mark_->get_iter(), kexp_marker_, tag_);
-	
+	//keeps the input box from going grey.
 	txt_view_i_->signal_event().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::inputEvent), txt_view_i_));
 	
-	buffer_input_->signal_insert().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::updateInputBox), buffer_input_, buffer_output_));
-	buffer_input_->signal_mark_set().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::setMark), txt_view_i_));
+	//connects buffer_input_ with buffer_output_ and checks for return/enter then "deletes" return/enter, return/enter does not need to be displayed
+	txt_view_i_->signal_key_press_event().connect(sigc::mem_fun(*this, &MainWindow::inputKeyPress), false);
+	//same as above but does not delete enter/return but calls function to calculate
+	txt_view_i_->signal_key_release_event().connect(sigc::bind<txtbuff&, txtbuff&>(sigc::mem_fun(*this, &MainWindow::keyPress), buffer_input_, buffer_output_), false);
 	
+	//auto-scroll
+	scroll_win_->get_vadjustment()->signal_changed().connect(sigc::bind<Gtk::ScrolledWindow&>(sigc::mem_fun(*this, &MainWindow::buffOutChanged), *scroll_win_));
+	
+	//button for the close tab
 	button->signal_clicked().connect(sigc::bind<Gtk::Box&>(sigc::mem_fun(*this, &MainWindow::removeTab), *box_tabs_));
 
-	event_box_->signal_button_press_event().connect(sigc::bind<Glib::RefPtr<Gtk::TextBuffer>, Gtk::Box&>(sigc::mem_fun(*this, &MainWindow::tabRightClick), buffer_output_, *box_tabs_), false);
+	event_box_->signal_button_press_event().connect(sigc::bind<Gtk::Box&>(sigc::mem_fun(*this, &MainWindow::tabRightClick), *box_tabs_), false);
 
 	tabs_.signal_page_reordered().connect(sigc::mem_fun(*this, &MainWindow::tabReorder));
 	tabs_.signal_switch_page().connect(sigc::mem_fun(*this, &MainWindow::tabSwitch));
+	tabs_.signal_event().connect(sigc::mem_fun(*this, &MainWindow::tabRemoved));
+	
+	//sets input box to have focus
+	event_box_->signal_button_release_event().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::txtInputFocus), txt_view_i_));
+	event_box_->signal_event_after().connect(sigc::bind(sigc::mem_fun(*this, &MainWindow::dragInputFocus), txt_view_i_));
 	
 	lbl_box->show_all();
 	tabs_.show_all();
 	
 	say("Created New Tab: " + Util::toString(tab_num), MessageState::kInfo, Verbosity::kDebug);
+	
+	tabs_.set_current_page(tabs_.page_num(*box_tabs_));
+	
+	txt_view_i_->grab_focus();
+	
+	setFractionsMenuEnabled(true);
+	
+	//setup saves
+	setFirstSave(buffer_output_, buffer_input_);
+	
+	updateStatus("");
+	initHistory();
+	creating_tab_ = false;
 }
 
-void MainWindow::tabReorder(Widget* widget, guint page_num)
+bool MainWindow::tabRemoved(GdkEvent* event)
 {
-	tab_reorder_call++;
-	//std::cout << "tab reorder call: " << tab_reorder_call << std::endl;
-	if(tab_reorder_call == tabs_.get_n_pages()) //signal calls this function for each page, we only need the first call
-		tab_reorder_call = 0;
+	if(event->type == 3)
+		return false;
 	
-	if(tab_reorder_call != 1)
-		return;
-	
-	cint tab_num = tab_numbers_.at(current_tab_);
-//	std::cout << "current tab: " << current_tab_ << std::endl;
-//	std::cout << "Math: " << tab_num << std::endl;
-	tab_numbers_.erase(tab_numbers_.begin()+current_tab_);
-	tab_numbers_.insert(tab_numbers_.begin()+page_num, tab_num);
-	current_tab_ = page_num;
-	
-	str s = "";
-	for(uint i = 0; i<tab_numbers_.size(); i++)
-	{
-		s += " " + Util::toString(tab_numbers_.at(i));
-	}
-	std::cout << "new order: " << s << std::endl;
+	Util::debugSay("tabRemvoed" + Util::toString(event->type));
+	return false;
 }
 
-void MainWindow::tabSwitch(Widget*,guint page_num)
+void MainWindow::dragInputFocus(GdkEvent* event, Gtk::TextView* txt_view_i)
 {
-	current_tab_ = page_num;
-	std::cout << "tab switch current tab: " << page_num << std::endl;
+	if(event->type == GDK_LEAVE_NOTIFY || event->type == GDK_ENTER_NOTIFY)
+		txt_view_i->grab_focus();
+}
+
+bool MainWindow::txtInputFocus(GdkEventButton*, Gtk::TextView* txt_view_i)
+{
+	Util::debugSay("txtInputFocus");
+	txt_view_i->grab_focus();
+	return false;
+}
+
+void MainWindow::buffOutChanged(Gtk::ScrolledWindow& scroll_win)
+{
+	auto adj = scroll_win.get_vadjustment();
+	adj->set_value(adj->get_upper());
+	scroll_win.set_vadjustment(adj);
+}
+
+void MainWindow::setupTabMenu()
+{
+	tab_menu_ = Gtk::manage(new Gtk::Menu);
+	Gtk::MenuItem* item = Gtk::manage(new Gtk::ImageMenuItem(Gtk::Stock::SAVE));
+	tab_menu_->append(*item);
+	item = Gtk::manage(new Gtk::ImageMenuItem(Gtk::Stock::SAVE_AS));
+	tab_menu_->append(*item);
+	Gtk::SeparatorMenuItem* separator = Gtk::manage(new Gtk::SeparatorMenuItem);
+	tab_menu_->append(*separator);
+	item = Gtk::manage(new Gtk::ImageMenuItem(Gtk::Stock::CLOSE));
+	item->signal_activate().connect(sigc::mem_fun(*this, &MainWindow::removeCurrentTab));
+	tab_menu_->append(*item);
+	tab_menu_->show_all();
 }
 
 void MainWindow::setMarkerTag()
@@ -238,22 +463,218 @@ void MainWindow::setMarkerTag()
 	tag_table_->add(tag_);
 }
 
-void MainWindow::setupTabMenu(Gtk::Label& label)
+bool MainWindow::inputKeyPress(GdkEventKey* eventkey)
 {
-	tab_menu_ = Gtk::manage(new Gtk::Menu);
-	Gtk::MenuItem* item = Gtk::manage(new Gtk::MenuItem("Save"));
-	tab_menu_->append(*item);
-	item = Gtk::manage(new Gtk::MenuItem("Save As..."));
-	tab_menu_->append(*item);
-	Gtk::SeparatorMenuItem* separator = Gtk::manage(new Gtk::SeparatorMenuItem);
-	tab_menu_->append(*separator);
-	item = Gtk::manage(new Gtk::MenuItem("Close"));
-	item->signal_activate().connect(sigc::mem_fun(*this, &MainWindow::removeCurrentTab));
-	tab_menu_->append(*item);
-	tab_menu_->show_all();
+	if(eventkey->keyval == GDK_KEY_Return || eventkey->keyval == GDK_KEY_KP_Enter)
+	{
+		//Util::debugSay("input key press");
+		return true;
+	}
+	
+	return false;
 }
 
-bool MainWindow::tabRightClick(GdkEventButton* event, Glib::RefPtr<Gtk::TextBuffer> buffer_output, Gtk::Box& close_tab)
+bool MainWindow::keyPress(GdkEventKey* eventkey, txtbuff& buffer_input, txtbuff& buffer_output)
+{
+	if(eventkey->keyval == GDK_KEY_Return || eventkey->keyval == GDK_KEY_KP_Enter)
+	{
+		onEnter();
+	}
+	else if(eventkey->keyval == GDK_KEY_Up && (eventkey->state & GDK_CONTROL_MASK) == GDK_CONTROL_MASK) //MOD mask 3 is always on for some reason
+	{
+		//Util::debugSay("ctrl up");
+		onCtrlUp(buffer_input);
+	}
+	else if(eventkey->keyval == GDK_KEY_Down && (eventkey->state & GDK_CONTROL_MASK) == GDK_CONTROL_MASK)
+	{
+		//Util::debugSay("ctrl down");
+		onCtrlDown(buffer_input);
+	}
+	else if(eventkey->keyval == GDK_KEY_Up)
+	{
+		//Util::debugSay("up arrow");
+		onUpArrow(buffer_input);
+	}
+	else if(eventkey->keyval == GDK_KEY_Down)
+	{
+		onDownArrow(buffer_input);
+	}
+	
+	return false;
+}
+
+void MainWindow::onEnter()
+{
+	//todo: this whole function can be a thread
+	say("Calculating...", MessageState::kInfo, Verbosity::kNone);
+	
+	str input_text = buffer_input_->get_text(); 
+	//input_text.erase(std::remove(input_text.begin(), input_text.end(), '\n'), input_text.end()); //remove newline
+	constr output_text = buffer_output_->get_text();
+	
+	if(debugwin_ != 0)
+		debugwin_->setExpression(input_text);
+	
+	Math::Calculate exp(input_text, getFractionsEnabled(), debug_);
+	exp.signal_say.connect(sigc::mem_fun(*this, &MainWindow::say));
+	exp.signal_debugoutput.connect(sigc::mem_fun(*this, &MainWindow::displayDebug));
+
+	try
+	{
+		constr ans = exp.calculate();
+		buffer_output_->set_text(formatOutput(output_text, ans, input_text));
+		buffer_input_->set_text("");
+		addHistory(input_text, ans);
+	}
+	catch(constr& err_msg)
+	{
+		say(err_msg, MessageState::kError, Verbosity::kError);
+		return;
+	}
+	
+	say("Done", MessageState::kInfo, Verbosity::kNone);
+}
+
+constr MainWindow::formatOutput(constr& current_output, constr& new_output, constr& exp)
+{
+	str output = current_output + "\n";
+	output += kexp_marker_ + " " + exp + "\n";
+	output += kexp_marker_ + kexp_marker_ + " " + new_output + "\n";
+	
+	return output;
+}
+
+void MainWindow::onUpArrow(txtbuff& buffer_input)
+{
+	arrowPressed(buffer_input, 1, false);
+}
+
+void MainWindow::onDownArrow(txtbuff& buffer_input)
+{
+	arrowPressed(buffer_input, -1, false);
+}
+
+void MainWindow::onCtrlUp(txtbuff& buffer_input)
+{
+	arrowPressed(buffer_input, 1, true);
+}
+
+void MainWindow::onCtrlDown(txtbuff& buffer_input)
+{
+	arrowPressed(buffer_input, -1, true);
+}
+
+void MainWindow::arrowPressed(txtbuff& buffer_input, cint num, bool exp) //true for exp; false for ans
+{
+	if(history_position_ == 0)
+		addCurrentHistory(buffer_input->get_text());
+	
+	increaseHistoryPosition(num);
+	setHistory(buffer_input, exp);
+}
+
+void MainWindow::increaseHistoryPosition(cint num)
+{
+	TabData td = getCurrentTabData();
+	cint history_position = history_position_;
+	cint td_history_size = td.exp_history.size();
+
+	if(history_position+num > td_history_size-1) // -1 because first position is current data
+		history_position_ = td.exp_history.size()-1; // -1 because vector starts at 0
+	else if(history_position+num < 0)
+		history_position_ = 0;
+	else
+		history_position_ += num;
+}
+
+void MainWindow::addHistory(constr& exp, constr& ans)
+{
+	TabData td = getCurrentTabData();
+	td.exp_history.push_back(exp);
+	td.ans_history.push_back(ans);
+	updateMap(getTabNum(), td);
+	//Util::debugSay("add his");
+}
+
+constr MainWindow::getHistory(bool exp, uint position) const
+{
+	//Util::debugSay("get his");
+	TabData td = getCurrentTabData();
+	
+	if(position > td.exp_history.size()-1)
+		position = td.exp_history.size()-1;
+	
+	uint np = td.exp_history.size() - position;
+	if(np == td.exp_history.size()) //current buffer data is at position 0
+		np = 0;
+	
+	if(exp || np == 0)
+		return td.exp_history.at(np);
+	else
+		return td.ans_history.at(np);
+}
+
+void MainWindow::setHistory(txtbuff& buffer_input, bool exp)
+{
+	buffer_input->set_text(getHistory(exp, history_position_));
+}
+
+void MainWindow::initHistory()
+{
+	addHistory("", "");
+}
+
+void MainWindow::addCurrentHistory(constr& text)
+{
+	TabData td = getCurrentTabData();
+	td.exp_history.erase(td.exp_history.begin());
+	td.exp_history.insert(td.exp_history.begin(), text);
+	updateMap(getTabNum(), td);
+}
+
+void MainWindow::tabReorder(Widget*, guint page_num)
+{
+	tab_reorder_call_++;
+	if(tab_reorder_call_ == tab_count_) //signal calls this function for each page including removed pages, we only need the first call
+		tab_reorder_call_ = 0;
+	
+	if(tab_reorder_call_ != 1)
+		return;
+	
+	cint tab_num = tab_numbers_.at(current_tab_);
+	tab_numbers_.erase(tab_numbers_.begin()+current_tab_);
+	tab_numbers_.insert(tab_numbers_.begin()+page_num, tab_num);
+	current_tab_ = page_num;
+	
+	//std::cout << "new order: " << Util::vecToString(tab_numbers_) << std::endl;
+}
+
+void MainWindow::tabSwitch(Widget*,guint page_num)
+{
+	if(shutingdown_) //weird bug in gtk+: when the program is closing it switches tabs, only sometimes though
+		return;
+	
+	tab_switch_call_++;
+	if(tab_switch_call_ == tab_count_) //same as tabReorder
+		tab_switch_call_ = 0;
+	
+	if(tab_switch_call_ != 1)
+		return;
+	
+	current_tab_ = page_num;
+	
+	if(creating_tab_ == true)
+		return;
+	
+	buffer_input_ = getCurrentTabData().input_buffer;
+	buffer_output_ = getCurrentTabData().output_buffer;
+	
+	//Util::debugSay("tab sw");
+	changeStatus(getStatus());
+	setFractionsEnabled();
+}
+
+bool MainWindow::tabRightClick(GdkEventButton* event, const Gtk::Box& close_tab)
 {
 	if( (event->type == GDK_BUTTON_PRESS) && (event->button == 3) ) //right click
 	{
@@ -265,34 +686,43 @@ bool MainWindow::tabRightClick(GdkEventButton* event, Glib::RefPtr<Gtk::TextBuff
 	return false;
 }
 
-void MainWindow::updateInputBox(const Gtk::TextBuffer::iterator& it, const Glib::ustring& str, int len, Glib::RefPtr<Gtk::TextBuffer> buffer_input, Glib::RefPtr<Gtk::TextBuffer> buffer_output)
-{
-	if(str != "\n")
-		return;
-	
-	say("Calculating...", MessageState::kInfo, Verbosity::kNone);
-	buffer_output->set_text(buffer_input->get_text(true));
-	say("Done", MessageState::kInfo, Verbosity::kNone);
-	
-}
-
-bool MainWindow::inputEvent(GdkEvent* event, Gtk::TextView* txt_view)
+bool MainWindow::inputEvent(GdkEvent*, Gtk::TextView* txt_view)
 {
 	txt_view->set_state_flags(Gtk::STATE_FLAG_FOCUSED);
 		
 	return false;
 }
 
-void MainWindow::setMark(const Gtk::TextBuffer::iterator& it, const Glib::RefPtr<Gtk::TextBuffer::Mark>& mark, Gtk::TextView* txt_view)
+void MainWindow::updateStatus(constr& message, const MessageState& msg_state /* = MessageState::kNone */)
 {
-	if(it.get_offset() < 2)
-		txt_view->set_editable(false);
-	else
-		txt_view->set_editable(true);
+	changeStatus(message, msg_state);
+	//Util::debugSay("update status");
+	
+	TabData td = getCurrentTabData();
+	td.status_msg = message;
+	updateMap(getTabNum(), td);
 }
 
-void MainWindow::updateStatus(constr& message, const MessageState& msg_state /* = MessageState::kNone */)
+constr MainWindow::getStatus() const
+{
+	//Util::debugSay("get status");
+	TabData td = getCurrentTabData();
+	return td.status_msg;
+}
+
+inline const MainWindow::TabData MainWindow::getCurrentTabData() const
+{
+	return tabdata_map_.at(getTabNum());
+}
+
+void MainWindow::closeWindow()
+{
+	this->hide();
+}
+
+void MainWindow::changeStatus(constr& message, const MessageState& msg_state /* = MessageState::kNone */)
 {	
+	//Util::debugSay("change status: " + message);
 	Gdk::RGBA color;
 	
 	switch(msg_state)
@@ -302,16 +732,18 @@ void MainWindow::updateStatus(constr& message, const MessageState& msg_state /* 
 		color.set(ColorsHTML::kPurple()); //purple
 		break;
 	case MessageState::kWarning:
+		color.set(ColorsHTML::kBlue());
+		break;
 	case MessageState::kError:
 		color.set("red");
 		break;
 	}
 	
 	statusbar_.override_color(color); //if not set each time color will stay the same
-	statusbar_.push(message, 1);
+	statusbar_.push(message);
 }
 
-void MainWindow::processArgs(int argc, char* argv[])
+void MainWindow::processArgs(cint argc, const char* const* argv)
 {
 	//set default values
 	verbosity_ = Verbosity::kError;
@@ -337,6 +769,8 @@ void MainWindow::processArgs(int argc, char* argv[])
 			verbosity_ = Verbosity::kNone;
 		}
 	}
+	
+	//Util::debugSay("debug: " + Util::toString(debug_));
 }
 
 void MainWindow::say(constr& message, const MessageState& msg_state /* = MessageState::kNone */, const Verbosity& verbosity /* = Verbosity::kError */)
@@ -345,19 +779,24 @@ void MainWindow::say(constr& message, const MessageState& msg_state /* = Message
 		return;
 	
 	Util::Say s(debug_);
-	s.termDisplay(message, msg_state);
-	updateStatus(message, msg_state);
+	s.display(message, msg_state);
+	
+	if(verbosity != Verbosity::kDebug)
+		updateStatus(message, msg_state);
 }
 
 void MainWindow::removeCurrentTab() //right click close and menu close/ctrl+w
 {
+	removeFirstSave();
 	say("Closing Current Tab: " + updateTabNum(false, tabs_.get_current_page()), MessageState::kInfo, Verbosity::kDebug);
 	tabs_.remove_page(tabs_.get_current_page());
 }
 
 void MainWindow::removeTab(Gtk::Box& box) //tab button close
 {
-	say("Closing Tab: " + updateTabNum(false, tabs_.page_num(box)), MessageState::kInfo, Verbosity::kDebug);
+	cint page_num = tabs_.page_num(box);
+	removeFirstSave(page_num);
+	say("Closing Tab: " + updateTabNum(false, page_num), MessageState::kInfo, Verbosity::kDebug);
 	tabs_.remove_page(box);
 }
 
@@ -389,22 +828,256 @@ int MainWindow::nextTabNum()
 	return next_num;
 }
 
-constr MainWindow::updateTabNum(bool add, uint num)
+constr MainWindow::updateTabNum(bool add, cuint num)
 {
 	str r = "";
-	if(add == true)
+	if(add)
 	{
 		tab_numbers_.push_back(num);
 		return Util::toString(num);
 	}
 	else
 	{
-		r = Util::toString(tab_numbers_.at(num));
+		r = Util::toString(getTabNum(num));
 		tab_numbers_.erase(tab_numbers_.begin()+num);
 	}
 	
 	return r;
 }
 
-} //namespace Gui
-} //namespace Math
+void MainWindow::setFirstSave(const txtbuff& output_buffer, const txtbuff& input_buffer)
+{
+	TabData sda;
+	sda.file = "";
+	sda.uri = current_dir_;
+	sda.output_buffer = output_buffer;
+	sda.input_buffer = input_buffer;
+			
+	tabdata_map_.insert(pairis(getTabNum(), sda));
+}
+
+void MainWindow::updateSave()
+{
+	if(save_file_ == "none")
+		return;
+	getFirstSave();
+	
+	TabData sd = getCurrentTabData();
+	sd.file = save_file_;
+	sd.uri = current_dir_;
+	sd.output_buffer = buffer_output_;
+	
+	updateMap(getTabNum(), sd);
+}
+
+bool MainWindow::getFirstSave()
+{
+	TabData sd = tabdata_map_.at(getTabNum());
+	buffer_output_ = sd.output_buffer;
+	
+	if(sd.file == "")
+		return false;
+	
+	save_file_ = sd.file;
+	current_dir_ = sd.uri;
+	
+	Util::debugSay("get first save");
+	return true;
+}
+
+void MainWindow::removeFirstSave()
+{
+	tabdata_map_.erase(getTabNum());
+}
+
+void MainWindow::removeFirstSave(cint page_num)
+{
+	tabdata_map_.erase(getTabNum(page_num));
+}
+
+void MainWindow::save()
+{
+	if(! getFirstSave())
+	{
+		saveOutputDialog();
+		updateSave();
+	}
+	else
+		saveOutputWrite(save_file_);
+}
+
+void MainWindow::saveOutputDialog()
+{
+	Gtk::FileChooserDialog save("Save Output", Gtk::FILE_CHOOSER_ACTION_SAVE);
+	save.set_transient_for(*this);
+	
+	save.add_button(Gtk::Stock::CANCEL, Gtk::RESPONSE_CANCEL);
+	save.add_button(Gtk::Stock::OK, Gtk::RESPONSE_OK);
+	
+	getFirstSave();
+	if(current_dir_ != "")
+		save.set_uri(current_dir_);
+	
+	bool done = false;
+	
+	while(! done)
+	{
+		cint response = save.run();
+		save_file_ = save.get_filename();
+		current_dir_ = save.get_uri();
+		
+		switch(response)
+		{
+		case Gtk::RESPONSE_OK:
+			done = saveOutput(save_file_);
+			break;
+		case Gtk::RESPONSE_CANCEL:
+			done = true;
+			save_file_ = "none";
+			break;
+		default:
+			std::cerr << "Unknown error in save dialog window response" << std::endl;
+			save_file_ = "none";
+			done = true;
+		}
+	}
+}
+
+bool MainWindow::saveOutput(constr& file)
+{
+	std::ifstream checkfile(file);
+	
+	if(checkfile)
+	{
+		if(! saveFileExistDialog(file))
+			return false;
+	}
+	
+	checkfile.close();
+	
+	saveOutputWrite(file);
+	
+	return true;
+}
+
+void MainWindow::saveOutputWrite(constr file)
+{
+	cint rtn = Util::saveFile(file, buffer_output_->get_text());
+	
+	if(rtn != 0)
+		say(Util::Error::getMessage(Util::Error::ErrorName::NoFileOpen, file, __func__), MessageState::kError, Verbosity::kError);
+	else
+		say("Saved file " + Util::getFilenameFromPath(save_file_) + " done", MessageState::kInfo, Verbosity::kNone);
+}
+
+bool MainWindow::saveFileExistDialog(constr& file)
+{
+	constr filename = Util::getFilenameFromPath(file);
+	constr str = "The file named \"" + filename + "\" already exist";
+	Gtk::MessageDialog exist(*this, str, false, Gtk::MessageType::MESSAGE_QUESTION, Gtk::ButtonsType::BUTTONS_YES_NO);
+	
+	exist.set_secondary_text("Do you want to replace it?");
+	
+	cint response = exist.run();
+	
+	switch(response)
+	{
+	case Gtk::RESPONSE_YES:
+		return true;
+	case Gtk::RESPONSE_NO:
+	default:
+		return false;
+	}
+}
+
+inline cint MainWindow::getTabNum() const
+{
+	return tab_numbers_.at(tabs_.get_current_page());
+}
+
+inline cint MainWindow::getTabNum(cint page_num) const
+{
+	return tab_numbers_.at(page_num);
+}
+
+void MainWindow::updateMap(cint num, const TabData& sd)
+{
+	tabdata_map_.erase(num);
+	tabdata_map_.insert(pairis(num, sd));
+	//Util::debugSay("update map: message: " + sd.status_msg);
+}
+
+void MainWindow::showAboutWindow()
+{
+	about_window_.set_program_name(Info::kProgName());
+	about_window_.set_version(getVersion());
+	about_window_.set_copyright("Timothy O'Connor");
+	about_window_.set_comments("A calculator that incorporates fractions");
+	about_window_.set_license_type(Gtk::LICENSE_GPL_3_0);
+	about_window_.set_website("https://sourceforge.net/projects/math-fractions/");
+	about_window_.set_website_label("Fraction's Website");
+	std::vector<Glib::ustring> authors = {"Timothy O'Connor"};
+	about_window_.set_authors(authors);
+	about_window_.set_logo_default();
+	about_window_.signal_response().connect(sigc::mem_fun(*this, &MainWindow::onAboutResponse));
+	
+	about_window_.show();
+}
+
+constr MainWindow::getVersion()
+{
+	return Version::kMajor() + "." + Version::kMinor() + "." + Version::kRevision() + " build: " + Version::kBuild() + "\nBuild Release: " + Version::kGetBuildType();
+}
+
+void MainWindow::onAboutResponse(int response)
+{
+	//Util::debugSay("about response: " + Util::toString(response));
+	if(response == Gtk::RESPONSE_CANCEL || response == Gtk::RESPONSE_CLOSE)
+		about_window_.hide();
+}
+
+void MainWindow::showDebugWin()
+{
+	if(debugwin_ != 0)
+		return;
+	
+	debugwin_ = new DebugWindow;
+	debugwin_->signal_hide().connect(sigc::mem_fun(*this, &MainWindow::debugWindowHide));
+	WinPos ws = getDebugWinPos();
+	debugwin_->move(ws.x, ws.y);
+	debugwin_->show();
+}
+
+void MainWindow::debugWindowHide()
+{
+	debugwin_ = 0;
+}
+
+MainWindow::WinPos MainWindow::getDebugWinPos()
+{
+	int posx = 0;
+	int posy = 0;
+	int width = 0;
+	int height = 0;
+	
+	this->get_position(posx, posy);
+	this->get_size(width, height);
+	
+	WinPos ws;
+	ws.x = posx + width + kwinbuffer_;
+	ws.y = posy;
+	
+	return ws;
+}
+
+void MainWindow::displayDebug(constr& txt, FunctionDebug function)
+{
+	if(debugwin_ == 0)
+		return;
+	
+	debugwin_->addFunctionOutput(txt, function);
+}
+
+} // namespace Gui
+
+} // namespace Math

@@ -13,9 +13,9 @@ namespace Math
 namespace Gui
 {
 
-constr getMenu()
+constr getMainMenu()
 {
-	constr menu = R"(
+	return R"(
     <ui>
       <menubar name="menu-main">
       <menu action="FileMenu">
@@ -35,19 +35,25 @@ constr getMenu()
         <separator/>
         <menuitem action="EditPref" />
       </menu>
+      <menu action="ViewMenu">
+        <menuitem action="ViewDebugWin" />
+      </menu>
+      <menu action="FractionsMenu">
+        <menuitem action="FractionsGCD" />
+      </menu>
       <menu action="CalcMenu">
         <menuitem action="CalcCalc" />
+        <menuitem action="CalcFractions" />
       </menu>
       <menu action="HelpMenu">
         <menuitem action="HelpHelp" />
+        <menuitem action="HelpUpdate" />
         <separator/>
         <menuitem action="HelpAbout" />
       </menu>
       </menubar>
     </ui>
     )";
-	
-	return menu;
 }
 
 } //namespace Gui

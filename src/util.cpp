@@ -6,15 +6,196 @@
  */
 
 #include <iostream>
+#include <string>
+#include <fstream>
+#include <algorithm>
 
 #include "util.h"
-#include "mainwindow.h"
 
 namespace Math
 {
 
+bool isOpenParenthesis(const str& token)
+{
+	if(token == kOpenParenthesisR() || token == kOpenParenthesisB() || token == kOpenParenthesisC())
+		return true;
+	
+	return false;
+}
+
+bool isCloseParenthesis(const str& token)
+{
+	if(token == kCloseParenthesisR() || token == kCloseParenthesisB() || token == kCloseParenthesisC())
+		return true;
+	
+	return false;
+}
+
+
+bool isParenthesis(const str& token)
+{
+	if(isOpenParenthesis(token) || isCloseParenthesis(token))
+		return true;
+	
+	return false;
+}
+
+bool isMulOrDivide(const str& token)
+{
+	if(token == kMuliply() || token == kDivide())
+		return true;
+	
+	return false;
+}
+
+bool isAddOrSub(const str& token)
+{
+	if(token == kAdd() || token == kSubtract())
+		return true;
+	
+	return false;
+}
+
+bool isPower(const str& token)
+{
+	if(token == kPower())
+		return true;
+	
+	return false;
+}
+
+bool isSymbol(const str& token)
+{
+	if(isAddOrSub(token) || isMulOrDivide(token) || isPower(token))
+		return true;
+	
+	return false;
+}
+
+bool isNumeric(const str& token)
+{
+	if(token == "")
+		return false;
+	
+	for(uint i=0; i<token.length(); i++)
+	{
+		const char num = token.at(i);
+		if(i == 0 && Util::toString(num) == kSubtract() && token.size() > 1) //token.size > 1 because "-" is not a number
+			continue;
+		if(isdigit(num) == false && Util::toString(num) != kDot())
+			return false;
+	}
+	
+	return true;
+}
+
+Precedence precedence(const str& token)
+{
+	if(isAddOrSub(token))
+		return Precedence::kAdd_Sub;
+	else if(isMulOrDivide(token))
+		return Precedence::kMul_Div;
+	else if(isPower(token))
+		return Precedence::kPower;
+	else
+		return Precedence::kUnknown;
+}
+
+Associative getAssociative(const str& token)
+{
+	if(isPower(token))
+		return Associative::kRight;
+	
+	return Associative::kLeft;
+}
+
+bool isLeftAssociative(Associative associative)
+{
+	if(associative == Associative::kLeft)
+		return true;
+	
+	return false;
+}
+
+bool isPrecedenceLess(const str& token, const str& otoken)
+{
+	if(precedence(token) < precedence(otoken))
+		return true;
+	
+	return false;
+}
+
+bool isPrecedenceEqual(const str& token, const str& otoken)
+{
+	if(precedence(token) == precedence(otoken))
+		return true;
+		
+	return false;
+}
+
 namespace Util
 {
+
+struct matchPathSeparator
+{
+    bool operator()( char ch ) const
+    {
+        return ch == '/';
+    }
+};
+
+constr getFilenameFromPath(constr& file)
+{
+	return std::string(std::find_if(file.rbegin(), file.rend(), matchPathSeparator()).base(), file.end());
+}
+
+constr getDirFromPath(constr& filepath)
+{
+	return filepath.substr(0, filepath.find_last_of("/"));
+}
+
+cint saveFile(constr& file, constr& text)
+{
+	std::ofstream outfile(file);
+	
+	if(! outfile.is_open()) 
+		return 1;
+	
+	outfile << text;
+	
+	outfile.close();
+	
+	return 0;
+}
+
+void debugSay(constr& msg)
+{
+	std::cout << msg << std::endl;
+}
+
+bool checkIfFileExist(constr& file)
+{
+	std::ifstream cfile(file);
+	
+	return cfile;
+}
+
+void writeFileToDisk(constr& filepath, constr& data)
+{	
+	std::ofstream ofile(filepath);
+	
+	if(! ofile.is_open())
+	{
+		Error err(false);
+		err.sayError(Error::ErrorName::NoFileOpen, filepath, __func__);
+		return;
+	}
+	
+	ofile << data;
+	
+	ofile.close();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////
 //Class Say
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -34,15 +215,16 @@ void Say::display(constr& message, const MessageState& msg_state)
 
 void Say::termDisplay(constr& message, const MessageState& msg_state)
 {
+	constr start_str = Info::kProgName() + ": ";
 	switch(msg_state)
 	{
 	case MessageState::kInfo:
 	case MessageState::kNone:
-		std::cout << message << std::endl;
+		std::cout << start_str << message << std::endl;
 		break;
 	case MessageState::kWarning:
 	case MessageState::kError:
-		std::cerr << termColor(TerminalColors::kRed) << message << termColor(TerminalColors::kNone) << std::endl; //switch term color back
+		std::cerr << termColor(TerminalColors::kRed) << start_str << message << termColor(TerminalColors::kNone) << std::endl; //switch term color back
 		break;
 	}
 }
@@ -94,15 +276,21 @@ Error::~Error()
 	// 
 }
 
-constr Error::show(const ErrorName& error_name, constr opt_text, constr function)
+constr Error::getMessage(const ErrorName& error_name, constr opt_text, constr function)
 {
-	error_name_ = error_name;
+	//todo Errors should be in a text file for ease of use and in8t
 	str text = "";
 	
 	switch(error_name)
 	{
 	case ErrorName::InvalidExpression:
 		text = "Invalid Expression";
+		break;
+	case ErrorName::NoFileOpen:
+		text = "File: " + opt_text + " could not be opened";
+		break;
+	case ErrorName::ReadingConfig:
+		text = "Reading configuration file";
 		break;
 	case ErrorName::Unknown:
 		text = "Unknown Error";
@@ -130,7 +318,14 @@ int Error::getErrorValue()
 
 void Error::showThrow(const ErrorName& error_name, constr opt_text, constr function)
 {
-	throw show(error_name, opt_text, function);
+	error_name_ = error_name;
+	throw getMessage(error_name, opt_text, function);
+}
+
+void Error::sayError(const ErrorName& error_name, constr opt_text, constr function)
+{
+	Say say(debug_);
+	say.display(Error::getMessage(error_name, opt_text, function), MessageState::kError);
 }
 
 } //namespace Util

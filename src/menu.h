@@ -16,7 +16,9 @@ namespace Math
 namespace Gui
 {
 
-constr getMenu();
+constr getMainMenu();
+
+constr getDebugToolbar();
 
 } //namespace Gui
 

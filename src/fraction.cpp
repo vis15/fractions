@@ -6,6 +6,7 @@
  */
 
 #include <cmath>
+#include <sstream>
 
 #include "fraction.h"
 #include "util.h"
@@ -20,7 +21,7 @@ Fraction Fraction::operator+ (const Fraction& num)
 	Sout<Fraction, Fraction> out = Fraction::setCommonDenominator(new_this, new_num);
 
 	Fraction output;
-	output.numerator_ = out.out1.numerator_+out.out2.numerator_;
+	output.numerator_ = out.out1.numerator_ + out.out2.numerator_;
 	output.denominator_ = out.out1.denominator_;
 
 	return output;
@@ -35,6 +36,33 @@ Fraction Fraction::operator- (const Fraction& num)
 	//Fraction output = *this+new_num;
 
 	return *this+new_num;
+}
+
+Fraction Fraction::operator* (const Fraction& num)
+{
+	const Fraction new_this = Fraction::setNegitive(*this);
+	const Fraction new_num = Fraction::setNegitive(num);
+	
+	Fraction output;
+	output.numerator_ = new_this.numerator_ * new_num.numerator_;
+	output.denominator_ = new_this.denominator_ * new_num.denominator_;
+	
+	return output;
+}
+
+Fraction Fraction::operator/ (const Fraction& num)
+{
+	Fraction new_num;
+	
+	new_num.setNumerator(num.denominator_);  //switch numerator and denominator so we can multiply
+	new_num.setDenominator(num.numerator_);
+	
+	return *this * new_num;
+}
+
+Fraction Fraction::operator^ (const Fraction& num)
+{
+	
 }
 
 clong Fraction::getCommonDenominator(clong num1, clong num2)
@@ -58,6 +86,71 @@ Fraction::Fraction()
 {
 	numerator_ = 0;
 	denominator_ = 0;
+}
+
+Fraction::Fraction(constr& fraction)
+{
+	cvstr nums = fractionSplit(fraction);
+	
+	numerator_ = toStoll(nums.at(0));
+	denominator_ = toStoll(nums.at(1));
+}
+
+longl Fraction::toStoll(constr& num)
+{
+	try
+	{
+		return std::stoll(num);
+	}
+	catch(...)
+	{
+		throw Util::Error::getMessage(Util::Error::ErrorName::InvalidExpression);
+	}
+}
+
+void Fraction::setNumerator(longl num)
+{
+	numerator_ = num;
+}
+
+void Fraction::setDenominator(clongl num)
+{
+	denominator_ = num;
+}
+
+bool Fraction::isFraction(constr& fraction)
+{
+	if(isNumeric(fraction))
+		return false;
+	
+	cvstr nums = fractionSplit(fraction);
+	
+	return isNumeric(nums.at(0)) && isNumeric(nums.at(1));
+}
+
+cvstr Fraction::fractionSplit(constr& fraction)
+{
+	vstr nums;
+	
+	if(isNumeric(fraction)) //this will turn signal digit number into a fraction that is x -> x/1
+	{
+		nums.push_back(fraction);
+		nums.push_back("1");
+		return nums;
+	}
+	
+	size_t pos = fraction.find_first_of('/');
+	if(pos == std::string::npos)
+	{
+		nums.push_back("");
+		nums.push_back("");
+		return nums;
+	}
+	
+	nums.push_back(fraction.substr(0, pos));
+	nums.push_back(fraction.substr(pos+1, fraction.size()));
+	
+	return nums;
 }
 
 Fraction::Fraction(clong numerator, clong denominator)

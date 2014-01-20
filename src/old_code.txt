@@ -112,4 +112,15 @@ inline cint MainWindow::txt_length_to_pix(cint txt_length) const
 {
 	return txt_length * 12;
 }
+
+
+void MainWindow::setMark(const Gtk::TextBuffer::iterator& it, const Glib::RefPtr<Gtk::TextBuffer::Mark>& mark, Gtk::TextView* txt_view)
+{
+	if(it.get_offset() < 2)
+		txt_view->set_editable(false);
+	else
+		txt_view->set_editable(true);
+	
+	//std::cout << "offset: " << it.get_offset() << std::endl;
+}
 	
