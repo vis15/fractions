@@ -58,7 +58,7 @@ DebugWindow::DebugWindow()
 	btntokenize_.signal_clicked().connect(sigc::mem_fun(*this, &DebugWindow::btnTokenizeClicked));
 	
 	btnrpn_.set_label(kRPN_);
-	btnrpn_.set_tooltip_text(kRPN_);
+	btnrpn_.set_tooltip_text("To Reverse Polish Notation");
 	btnrpn_.signal_clicked().connect(sigc::mem_fun(*this, &DebugWindow::btnRPNClicked));
 	
 	btncalc_.set_label("Calc");
@@ -69,16 +69,27 @@ DebugWindow::DebugWindow()
 	
 	chkparrep_.set_label(kProcedure_);
 	chkparrep_.set_sensitive(false);
+	chkparrep_.signal_clicked().connect(sigc::mem_fun(*this, &DebugWindow::chkParRepClicked));
+	
 	chkaddmul_.set_label(kProcedure_);
 	chkaddmul_.set_sensitive(false);
+	chkaddmul_.signal_clicked().connect(sigc::mem_fun(*this, &DebugWindow::chkAddMulClicked));
+	
 	chksubtoadd_.set_label(kProcedure_);
 	chksubtoadd_.set_sensitive(false);
+	chksubtoadd_.signal_clicked().connect(sigc::mem_fun(*this, &DebugWindow::chkSubToAddClicked));
+	
 	chktokenize_.set_label(kProcedure_);
 	chktokenize_.set_sensitive(false);
+	chktokenize_.signal_clicked().connect(sigc::mem_fun(*this, &DebugWindow::chkTokenizeClicked));
+	
 	chkrpn_.set_label(kProcedure_);
 	chkrpn_.set_sensitive(false);
+	chkrpn_.signal_clicked().connect(sigc::mem_fun(*this, &DebugWindow::chkRPNClicked));
+	
 	chkcalc_.set_label(kProcedure_);
 	chkcalc_.set_sensitive(false);
+	chkcalc_.signal_clicked().connect(sigc::mem_fun(*this, &DebugWindow::chkCalcClicked));
 	
 	btnbox_.set_orientation(Gtk::ORIENTATION_VERTICAL);
 	btnbox_.pack_start(vbox_parrep_, Gtk::PACK_SHRINK);
@@ -115,7 +126,7 @@ DebugWindow::DebugWindow()
 
 DebugWindow::~DebugWindow()
 {
-	
+
 }
 
 void DebugWindow::onClear()
@@ -133,170 +144,171 @@ void DebugWindow::appendOutputText(constr& text)
 	buffoutput_->set_text(buffoutput_->get_text() + text + "\n");
 }
 
-void DebugWindow::addFunctionOutput(constr& text, FunctionDebug function)
+void DebugWindow::addFunctionOutput(constr& text, FunctionDebug function, bool procedure)
 {	
 	bool check = false;
+	str functionstr = "";
+	bool chkpro = false; //check procedure
 	
 	switch(function)
 	{
 	case FunctionDebug::kParRep:
-		check = checkParRep();
+		check = btnparrep_.get_active();
+		functionstr = kParRep_;
+		chkpro = chkparrep_.get_active();
 		break;
 	case FunctionDebug::kAddMul:
-		check = checkAddMul();
+		check = btnaddmul_.get_active();
+		functionstr = kAddMul_;
+		chkpro = chkaddmul_.get_active();
 		break;
 	case FunctionDebug::kSubToAdd:
-		check = checkSubToAdd();
+		check = btnsubtoadd_.get_active();
+		functionstr = kSubToAdd_;
+		chkpro = chksubtoadd_.get_active();
 		break;
 	case FunctionDebug::kTokenize:
-		check = checkTokenizebtn();
+		check = btntokenize_.get_active();
+		functionstr = kTokenize_;
+		chkpro = chktokenize_.get_active();
 		break;
 	case FunctionDebug::kRPN:
-		check = checkRPNbtn();
+		check = btnrpn_.get_active();
+		functionstr = kRPN_;
+		chkpro = chkrpn_.get_active();
 		break;
 	case FunctionDebug::kCalc:
-		check = checkCalc();
+		check = btncalc_.get_active();
+		functionstr = kCalc_;
+		chkpro = chkcalc_.get_active();
 		break;
 	}
 	
-	if(check)
+	if(chkpro && procedure && check)
 	{
-		appendOutputText(getFunctionBeginText(function));
+		appendOutputText(getProcedureBeginText(functionstr));
+		appendOutputText(text);
+	}
+	
+	if(check && ! procedure)
+	{
+		appendOutputText(getFunctionBeginText(functionstr));
 		appendOutputText(text + "\n");
 	}
 }
 
-bool DebugWindow::checkRPNbtn()
-{
-	if(btnrpn_.get_active())
-		return true;
-	else
-		return false;
-}
-
-bool DebugWindow::checkTokenizebtn()
-{
-	if(btntokenize_.get_active())
-		return true;
-	else
-		return false;
-}
-
-bool DebugWindow::checkParRep()
-{
-	if(btnparrep_.get_active())
-		return true;
-	else
-		return false;
-}
-
-bool DebugWindow::checkSubToAdd()
-{
-	if(btnsubtoadd_.get_active())
-		return true;
-	else
-		return false;
-}
-
-bool DebugWindow::checkAddMul()
-{
-	if(btnaddmul_.get_active())
-		return true;
-	else
-		return false;
-}
-
-bool DebugWindow::checkCalc()
-{
-	if(btncalc_.get_active())
-		return true;
-	else
-		return false;
-}
-
-constr DebugWindow::getFunctionBeginText(FunctionDebug function)
+constr DebugWindow::getFunctionBeginText(constr function)
 {
 	constr sd = "=========";
 	str output = sd;
 	
-	switch(function)
-	{
-	case FunctionDebug::kParRep:
-		output += kParRep_;
-		break;
-	case FunctionDebug::kAddMul:
-		output += kAddMul_;
-		break;
-	case FunctionDebug::kSubToAdd:
-		output += kSubToAdd_;
-		break;
-	case FunctionDebug::kTokenize:
-		output += kTokenize_;
-		break;
-	case FunctionDebug::kRPN:
-		output += kRPN_;
-		break;
-	case FunctionDebug::kCalc:
-		output += kCalc_;
-		break;
-	}
+	output += function + " Output" + sd;
 	
-	output += " Output" + sd;
+	return output;
+}
+
+constr DebugWindow::getProcedureBeginText(constr function)
+{
+	constr sd = "---------------------";
+	str output = sd;
+	
+	output += function + " Procedure" + sd;
 	
 	return output;
 }
 
 void DebugWindow::setExpression(constr& expression)
 {
-	appendOutputText("Parsing Expression: " + expression);
+	appendOutputText("Parsing Expression: " + expression + "\n");
 }
 
 void DebugWindow::btnParRepClicked()
 {
-	if(checkParRep())
-		chkparrep_.set_sensitive(true);
-	else
-		chkparrep_.set_sensitive(false);
+	chkparrep_.set_sensitive(btnparrep_.get_active());
+	dwsettings_.parrep = btnparrep_.get_active();
 }
 
 void DebugWindow::btnAddMulClicked()
 {
-	if(checkAddMul())
-		chkaddmul_.set_sensitive(true);
-	else
-		chkaddmul_.set_sensitive(false);
+	chkaddmul_.set_sensitive(btnaddmul_.get_active());
+	dwsettings_.addmul = btnaddmul_.get_active();
 }
 
 void DebugWindow::btnSubToAddClicked()
 {
-	if(checkSubToAdd())
-		chksubtoadd_.set_sensitive(true);
-	else
-		chksubtoadd_.set_sensitive(false);
+	chksubtoadd_.set_sensitive(btnsubtoadd_.get_active());
+	dwsettings_.subtoadd = btnsubtoadd_.get_active();
 }
 
 void DebugWindow::btnTokenizeClicked()
 {
-	if(checkTokenizebtn())
-		chktokenize_.set_sensitive(true);
-	else
-		chktokenize_.set_sensitive(false);
+	chktokenize_.set_sensitive(btntokenize_.get_active());
+	dwsettings_.tokenize = btntokenize_.get_active();
 }
 
 void DebugWindow::btnRPNClicked()
 {
-	if(checkRPNbtn())
-		chkrpn_.set_sensitive(true);
-	else
-		chkrpn_.set_sensitive(false);
+	chkrpn_.set_sensitive(btnrpn_.get_active());
+	dwsettings_.rpn = btnrpn_.get_active();
 }
 
 void DebugWindow::btnCalcClicked()
 {
-	if(checkCalc())
-		chkcalc_.set_sensitive(true);
-	else
-		chkcalc_.set_sensitive(false);
+	chkcalc_.set_sensitive(btncalc_.get_active());
+	dwsettings_.calc = btncalc_.get_active();
+}
+
+void DebugWindow::chkParRepClicked()
+{
+	dwsettings_.parrep_p = chkparrep_.get_active();
+}
+
+void DebugWindow::chkAddMulClicked()
+{
+	dwsettings_.addmul_p = chkaddmul_.get_active();
+}
+
+void DebugWindow::chkSubToAddClicked()
+{
+	dwsettings_.subtoadd_p = chksubtoadd_.get_active();
+}
+
+void DebugWindow::chkTokenizeClicked()
+{
+	dwsettings_.tokenize_p = chktokenize_.get_active();
+}
+
+void DebugWindow::chkRPNClicked()
+{
+	dwsettings_.rpn_p = chkrpn_.get_active();
+}
+
+void DebugWindow::chkCalcClicked()
+{
+	dwsettings_.calc_p = chkcalc_.get_active();
+}
+
+DebugWindowSettings DebugWindow::getDWSettings()
+{
+	return dwsettings_;
+}
+
+void DebugWindow::setSettigns(const DebugWindowSettings& dwsettings)
+{
+	dwsettings_ = dwsettings;
+	
+	btnparrep_.set_active(dwsettings.parrep);
+	chkparrep_.set_active(dwsettings.parrep_p);
+	btnaddmul_.set_active(dwsettings.addmul);
+	chkaddmul_.set_active(dwsettings.addmul_p);
+	btnsubtoadd_.set_active(dwsettings.subtoadd);
+	chksubtoadd_.set_active(dwsettings.subtoadd_p);
+	btntokenize_.set_active(dwsettings.tokenize);
+	chktokenize_.set_active(dwsettings.tokenize_p);
+	btnrpn_.set_active(dwsettings.rpn);
+	chkrpn_.set_active(dwsettings.rpn_p);
+	btncalc_.set_active(dwsettings.calc);
+	chkcalc_.set_active(dwsettings.calc_p);
 }
 
 } // namespace Gui

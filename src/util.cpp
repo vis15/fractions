@@ -196,6 +196,31 @@ void writeFileToDisk(constr& filepath, constr& data)
 	ofile.close();
 }
 
+constr vStrToStr(const vstr& vec_str, int spos) //spos = start position
+{
+	str str = "";
+	
+	for(uint i=spos; i<vec_str.size(); i++)
+	{
+		str += " " + vec_str.at(i); //space to show where tokens start and end
+	}
+	
+	return str;
+}
+
+constr stackStrToStr(std::stack<str> stack_str) //need a copy so we don't change the real one 
+{
+	str str = "";
+	
+	while(stack_str.size()-1) //-1 b/c we do not want to show the init char
+	{
+		str += stack_str.top() + " ";
+		stack_str.pop();
+	}
+	
+	return str;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////
 //Class Say
 ///////////////////////////////////////////////////////////////////////////////////////

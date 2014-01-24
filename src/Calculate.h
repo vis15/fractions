@@ -17,7 +17,7 @@ namespace Math
 class Calculate
 {
 public:
-	Calculate(constr& expression, bool fractions_enabled, bool debug = false);
+	Calculate(ClassVars classvars);
 	virtual ~Calculate();
 	constr calculate();
 	constr calcRPN(cvstr& exp);
@@ -30,15 +30,13 @@ public:
 	clongd toStold(constr& num);
 	
 private:
-	void debugOutput(constr& text, FunctionDebug function);
+	void debugOutput(constr& text, FunctionDebug function, bool procedure);
 	
-	constr exp_;
-	bool fractions_enabled_;
-	bool debug_;
+	ClassVars classvars_;
 	
 public:
 	sigc::signal<void, constr&, const MessageState&, const Verbosity&> signal_say;
-	sigc::signal<void, constr&, FunctionDebug> signal_debugoutput;
+	sigc::signal<void, constr&, FunctionDebug, bool> signal_debugoutput;
 };
 
 } /* namespace Math */

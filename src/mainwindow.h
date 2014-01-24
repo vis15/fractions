@@ -46,7 +46,7 @@ private:
 	};
 	
 public:
-	MainWindow(cint argc, const char* const* argv);
+	MainWindow(cint argc, char** argv);
 	virtual ~MainWindow();
 	void changeStatus(constr& message, const MessageState& msg_state = MessageState::kNone);
 	void say(constr& message, const MessageState& msg_state = MessageState::kNone, const Verbosity& verbosity = Verbosity::kError); //Verbose error is lowest besides no verbosity
@@ -80,6 +80,7 @@ protected:
 	bool fractionsEnabledEventEnter(GdkEventCrossing*);
 	bool fractionsEnabledEventLeave(GdkEventCrossing*);
 	bool tabRemoved(GdkEvent*);
+	bool mainWindowDrag(GdkEventFocus*);
 	
 	Gtk::Box box_main_;
 	Gtk::Box* box_tabs_;
@@ -94,18 +95,22 @@ protected:
 	txtbuff buffer_output_;
 	txtbuff buffer_mark_;
 	Gtk::Statusbar statusbar_;
-	Glib::RefPtr<Gtk::TextBuffer::Tag> tag_;
-	Glib::RefPtr<Gtk::TextBuffer::TagTable> tag_table_;
 	Gtk::EventBox* event_box_;
 	Gtk::Menu* tab_menu_;
-	Glib::RefPtr<Gtk::Action> menu_fractions_;
+	Glib::RefPtr<Gtk::Action> menuitem_fractions_;
 	Gtk::TextView* txt_view_mark_;
 	Gtk::Label fractions_enabled_;
 	Gtk::EventBox evtb_fractions_;
 	Glib::RefPtr<Gtk::Action> fractions_menu_;
 	Gtk::Box status_box_; //box to hold two (main, and fractions) statusbars
 	Gtk::Statusbar statusbar_fractions_;
-	Glib::RefPtr<Gtk::Action> menu_fractions_gcd_;
+	Glib::RefPtr<Gtk::Action> menuitem_fractions_gcd_;
+	Glib::RefPtr<Gtk::Action> menuitem_save_;
+	Glib::RefPtr<Gtk::Action> menuitem_save_as_;
+	Glib::RefPtr<Gtk::Action> menuitem_close_tab_;
+	Glib::RefPtr<Gtk::Action> menuitem_clear_all_tabs_;
+	Glib::RefPtr<Gtk::Action> menuitem_clear_tab_;
+	Glib::RefPtr<Gtk::Action> menuitem_calculate_;
 	Gtk::AboutDialog about_window_;
 	Glib::RefPtr<Gdk::Pixbuf> window_icon_;
 	DebugWindow* debugwin_;
@@ -122,10 +127,8 @@ private:
 	void saveOutputWrite(constr file);
 	bool getFirstSave();
 	void setFirstSave(const txtbuff& output_buffer, const txtbuff& input_buffer);
-	void removeFirstSave();
-	void removeFirstSave(cint);
-	inline cint getTabNum() const;
-	inline cint getTabNum(cint) const;
+	void removeTabData(cint = kdefault_value_);
+	inline cint getTabNum(cint = kdefault_value_) const;
 	void updateMap(cint, const TabData&);
 	void updateSave();
 	void updateStatus(constr& message, const MessageState& msg_state = MessageState::kNone);
@@ -138,7 +141,7 @@ private:
 	constr getHistory(bool exp, uint position) const;
 	void setHistory(txtbuff& buffer_input, bool exp);
 	void increaseHistoryPosition(cint num);
-	void initHistory();
+	void initTabData();
 	void addCurrentHistory(constr& text);
 	constr formatOutput(constr& current_output, constr& new_output, constr& exp);
 	void setFractionsEnabled(bool toggle = false);
@@ -152,10 +155,10 @@ private:
 	void setFractionsMenuEnabled(bool enabled);
 	constr getVersion();
 	WinPos getDebugWinPos();
-	void displayDebug(constr& txt, FunctionDebug function);
+	void displayDebug(constr& txt, FunctionDebug function, bool procedure);
 	void setSettings();
-	bool mainWindowDrag(GdkEventFocus*);
-	void mainWindowResize();
+	void enableTabItems(const bool enable);
+	void saveSettings();
 	
 	static constr kexp_marker_ ;
 	static constr ktab_label_;
@@ -165,7 +168,8 @@ private:
 	static constr kgcd_;
 	static constexpr cint kwinbuffer_ = 7;
 	cint kargc_; //used for new window arguments
-	const char* const* kargv_;
+	char** kargv_;
+	static constexpr cint kdefault_value_ = -1;
 	
 	
 	bool debug_ = false;
@@ -186,6 +190,9 @@ private:
 	bool shutingdown_ = false;
 	ConfigSettings configsettings_;
 	Config config_;
+	bool debugwin_enabled_ = false;
+	DebugWindowSettings dwsettings_;
+	int wincount = 0;
 };
 
 } //namespace Gui

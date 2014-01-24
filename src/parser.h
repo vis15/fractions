@@ -24,14 +24,12 @@ namespace Parser
 class Parser
 {
 public:
-	Parser(constr& expression, bool fractions_enabled, bool debug = false);
+	Parser(ClassVars classvars);
 	virtual ~Parser();
 	cvstr parse();
 	void setExp(constr& expression);
 	//bool isValid();
 	void test();
-	constr vStrToStr(const vstr& vec_str, int spos = 0) const; //spos = start position
-	constr stackStrToStr(std::stack<str>& stack_str) const;
 	cvstr toRPN(cvstr& exp);
 	constr addMultiply(constr& exp);
 	cvstr fractionTokenize(constr& exp);
@@ -45,13 +43,11 @@ private:
 	void checkVars(const Fraction& fraction);
 	
 public:
-	str exp_;
 	sigc::signal<void, constr&, const MessageState&> signal_say;
-	sigc::signal<void, constr&, FunctionDebug> signal_debugoutput;
+	sigc::signal<void, constr&, FunctionDebug, bool> signal_debugoutput;
 	
 private:
-	bool fractions_enabled_;
-	const bool debug_;
+	ClassVars classvars_;
 };
 
 } //namespace Parser

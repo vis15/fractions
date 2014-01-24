@@ -123,4 +123,19 @@ void MainWindow::setMark(const Gtk::TextBuffer::iterator& it, const Glib::RefPtr
 	
 	//std::cout << "offset: " << it.get_offset() << std::endl;
 }
+
+void MainWindow::setMarkerTag()
+{
+	tag_ = Gtk::TextBuffer::Tag::create();
+	tag_->property_editable() = false;
+	Gdk::RGBA color_purple(ColorsHTML::kDPurple());
+	tag_->property_foreground_rgba() = color_purple;
+	tag_table_ = Gtk::TextBuffer::TagTable::create();
+	tag_table_->add(tag_);
+}
+
+	//setMarkerTag();
+	//buffer_mark_ = Gtk::TextBuffer::create(tag_table_);
+	//txt_view_mark_->set_buffer(buffer_mark_);
+	//buffer_mark_->insert_with_tag(buffer_mark_->begin(), kexp_marker_, tag_);
 	

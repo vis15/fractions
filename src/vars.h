@@ -29,6 +29,7 @@ typedef long long longl;
 typedef const longl clongl;
 typedef long double longd;
 typedef const longd clongd;
+typedef const bool cbool;
 
 constexpr cint kReturnError = -1;
 
@@ -143,10 +144,46 @@ inline namespace DefaultConfigVars
 
 constexpr cint kwinposx = -1;
 constexpr cint kwinposy = -1;
-constexpr cint kwinsizel = -1;
-constexpr cint kwinsizew = -1;
+constexpr cint kwinsizel = 500;
+constexpr cint kwinsizew = 500;
+constexpr cbool kparrep = false;
+constexpr cbool kparrep_p = false;
+constexpr cbool kaddmul = false;
+constexpr cbool kaddmul_p = false;
+constexpr cbool ksubtoadd = false;
+constexpr cbool ksubtoadd_p = false;
+constexpr cbool ktokenize = false;
+constexpr cbool ktokenize_p = false;
+constexpr cbool krpn = false;
+constexpr cbool krpn_p = false;
+constexpr cbool kcalc = false;
+constexpr cbool kcalc_p = false;
 
 } // namespace DefaultConfigVars
+
+struct ClassVars
+{
+	bool debug = false;
+	bool debugwin = false;
+	str exp;
+	bool fractions = true;
+};
+
+struct DebugWindowSettings
+{
+	bool parrep = kparrep;
+	bool parrep_p = kparrep_p;
+	bool addmul = kaddmul;
+	bool addmul_p = kaddmul_p;
+	bool subtoadd = ksubtoadd;
+	bool subtoadd_p = ksubtoadd_p;
+	bool tokenize = ktokenize;
+	bool tokenize_p = ktokenize_p;
+	bool rpn = krpn;
+	bool rpn_p = krpn_p;
+	bool calc = kcalc;
+	bool calc_p = kcalc_p;
+};
 
 struct ConfigSettings
 {
@@ -154,8 +191,9 @@ struct ConfigSettings
 	int winposy = kwinposy;
 	int winsizel = kwinsizel;
 	int winsizew = kwinsizew;
+	DebugWindowSettings dwsettings;
 };
 
-} //namespace Math
+} // namespace Math
 
 #endif /* VARS_H_ */

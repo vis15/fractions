@@ -45,6 +45,18 @@ constr kWindowSizeL = "WindowSizeL";
 constr kWindowSizeW = "WindowSizeW";
 constr kWindowPositionX = "WindowPositionX";
 constr kWindowPositionY = "WindowPositionY";
+constr kParRep = "Parrep";
+constr kParRep_p = "ParRep_p";
+constr kAddMul = "AddMul";
+constr kAddMul_p = "AddMul_p";
+constr kSubToAdd = "SubToAdd";
+constr kSubToAdd_p = "SubToAdd_p";
+constr kTokenize = "Tokenize";
+constr kTokenize_p = "Tokenize_p";
+constr kRPN = "RPN";
+constr kRPN_p = "RPN_p";
+constr kCalc = "Calc";
+constr kCalc_p = "Calc_p";
 
 } // namespace Config
 

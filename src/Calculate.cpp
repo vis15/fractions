@@ -16,10 +16,9 @@
 namespace Math
 {
 
-Calculate::Calculate(constr& expression, bool fractions_enabled, bool debug) : exp_(expression), fractions_enabled_(fractions_enabled), debug_(debug)
+Calculate::Calculate(ClassVars classvars)
 {
-	// 
-
+	classvars_ = classvars;
 }
 
 Calculate::~Calculate()
@@ -30,7 +29,7 @@ Calculate::~Calculate()
 constr Calculate::calculate()
 {
 	vstr voutput;
-	Parser::Parser p(exp_, fractions_enabled_, debug_);
+	Parser::Parser p(classvars_);
 	p.signal_debugoutput.connect(sigc::mem_fun(*this, &Calculate::debugOutput));
 	
 	try
@@ -42,17 +41,20 @@ constr Calculate::calculate()
 		throw err;
 	}
 	
-	signal_debugoutput.emit(Util::vecToString(voutput), FunctionDebug::kRPN);
+	if(classvars_.debugwin == true)
+		signal_debugoutput.emit(Util::vecToString(voutput), FunctionDebug::kRPN, false);
 	
 	constr output = calcRPN(voutput);
-	signal_debugoutput.emit(output, FunctionDebug::kCalc);
+	
+	if(classvars_.debugwin == true)
+		signal_debugoutput.emit(output, FunctionDebug::kCalc, false);
 	
 	return output;
 }
 
-void Calculate::debugOutput(constr& text, FunctionDebug function)
+void Calculate::debugOutput(constr& text, FunctionDebug function, bool procedure)
 {
-	signal_debugoutput.emit(text, function);
+	signal_debugoutput.emit(text, function, procedure);
 }
 
 constr Calculate::calcRPN(cvstr& exp)
@@ -61,7 +63,7 @@ constr Calculate::calcRPN(cvstr& exp)
 	constr stack_init = kStack_Init();
 	str last = "";
 	str last2 = "";
-	str debugoutput = "";
+	str functionoutput = "";
 	
 	stk.push(stack_init);
 	
@@ -81,7 +83,16 @@ constr Calculate::calcRPN(cvstr& exp)
 		{
 			stk.push(token);
 		}
+		
+		if(classvars_.debugwin)
+		{
+			functionoutput += "Expression: " + Util::vStrToStr(exp, i+1) + "\n";
+			functionoutput += "Stack: " + Util::stackStrToStr(stk) + "\n\n";
+		}
 	}
+	
+	if(classvars_.debugwin)
+		signal_debugoutput.emit(functionoutput, FunctionDebug::kCalc, true);
 	
 	return stk.top();
 }

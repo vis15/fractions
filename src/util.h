@@ -10,6 +10,7 @@
 
 #include <sstream>
 #include <limits>
+#include <stack>
 
 #include "vars.h"
 
@@ -39,6 +40,8 @@ void debugSay(constr& msg);
 bool checkIfFileExist(constr& file);
 void writeFileToDisk(constr& filepath, constr& data);
 constr getDirFromPath(constr& filepath);
+constr vStrToStr(const vstr& vec_str, int spos = 0);
+constr stackStrToStr(std::stack<str> stack_str);
 
 template<typename T>
 constr toString(T t)

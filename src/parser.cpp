@@ -23,9 +23,9 @@ namespace Math
 namespace Parser
 {
 
-Parser::Parser(constr& expression, bool fractions_enabled, bool debug) : exp_(expression), fractions_enabled_(fractions_enabled), debug_(debug)
+Parser::Parser(ClassVars classvars)
 {
-	
+	classvars_ = classvars;
 }
 
 Parser::~Parser()
@@ -39,21 +39,30 @@ cvstr Parser::parse()
 	//todo: another way to implement errors is by returning a struct with error or throw
 	
 	str output = "";
-	output = parenthesisReplace(exp_);
-	signal_debugoutput.emit(output, FunctionDebug::kParRep);
+	output = parenthesisReplace(classvars_.exp);
+	
+	if(classvars_.debugwin == true)
+		signal_debugoutput.emit(output, FunctionDebug::kParRep, false);
+	
 	output = addMultiply(output);
-	signal_debugoutput.emit(output, FunctionDebug::kAddMul);
+	
+	if(classvars_.debugwin == true)
+		signal_debugoutput.emit(output, FunctionDebug::kAddMul, false);
+	
 	output = subToAdd(output);
-	signal_debugoutput.emit(output, FunctionDebug::kSubToAdd);
+	
+	if(classvars_.debugwin == true)
+		signal_debugoutput.emit(output, FunctionDebug::kSubToAdd, false);
 	
 	vstr voutput;
 	
-	if(fractions_enabled_)
+	if(classvars_.fractions)
 		voutput = fractionTokenize(output);
 	else
 		voutput = tokenize(output);
 	
-	signal_debugoutput.emit(Util::vecToString(voutput), FunctionDebug::kTokenize);
+	if(classvars_.debugwin == true)
+		signal_debugoutput.emit(Util::vecToString(voutput), FunctionDebug::kTokenize, false);
 	
 	voutput = toRPN(voutput);
 	
@@ -68,6 +77,7 @@ cvstr Parser::fractionTokenize(constr& exp)
 	str num = "";
 	str out = "";
 	bool first_divide = true;
+	str functionoutput = "";
 	
 	for(uint i=0; i<exp.size(); i++)
 	{
@@ -114,6 +124,14 @@ cvstr Parser::fractionTokenize(constr& exp)
 			num = "";
 			first_divide = true;
 		}
+		
+		if(classvars_.debugwin)
+		{
+			functionoutput += "Expression: " + exp.substr(i+1,exp.length()) + "\n";
+			functionoutput += "Num: " + num + "\n";
+			functionoutput += "Fraction: " + out + "\n";
+			functionoutput += "Output: " + Util::vStrToStr(output) + "\n\n";
+		}
 	}
 	
 	//push rest of out and num to output
@@ -125,6 +143,9 @@ cvstr Parser::fractionTokenize(constr& exp)
 	else if(num != "") //push last number from the queue
 		output.push_back(num);
 	
+	if(classvars_.debugwin)
+		signal_debugoutput.emit(functionoutput, FunctionDebug::kTokenize, true);
+	
 	return output;
 }
 
@@ -133,7 +154,7 @@ cvstr Parser::tokenize(constr& exp)
 	vstr output;
 		
 	str num = "";
-	str out = "";
+	str functionoutput = "";
 	
 	for(uint i=0; i<exp.size(); i++)
 	{
@@ -162,10 +183,20 @@ cvstr Parser::tokenize(constr& exp)
 			output.push_back(chr);
 			num = "";
 		}
+		
+		if(classvars_.debugwin)
+		{
+			functionoutput += "Expression: " + exp.substr(i+1,exp.length()) + "\n";
+			functionoutput += "Num: " + num + "\n";
+			functionoutput += "Output: " + Util::vStrToStr(output) + "\n\n";
+		}
 	}
 	
 	 if(num != "") //push last number from the queue
 		output.push_back(num);
+	 
+	if(classvars_.debugwin)
+		signal_debugoutput.emit(functionoutput, FunctionDebug::kTokenize, true);
 	
 	return output;
 }
@@ -174,6 +205,7 @@ constr Parser::addMultiply(constr& exp)
 {
 	str atmp = exp;
 	int k = 0; 
+	str functionoutput = "";
 
 	for (uint i = 1; i < exp.length(); i++) //ignore first char
 	{
@@ -183,10 +215,19 @@ constr Parser::addMultiply(constr& exp)
 
 		if (isOpenParenthesis(chr) && (!isSymbol(last_char) && !isOpenParenthesis(last_char))) //i>0 = not first "("
 		{
-			atmp.insert(i + k, "*");
+			atmp.insert(i + k, kMuliply());
 			k++; //when adding '*' length of atmp increases by 1
 		}
+		
+		if(classvars_.debugwin)
+		{
+			functionoutput += "Expression: " + exp.substr(i, exp.length()) + "\n";
+			functionoutput += "New Expression: " + atmp.substr(0, i+k) + "\n\n";
+		}
 	}
+	
+	if(classvars_.debugwin)
+		signal_debugoutput.emit(functionoutput, FunctionDebug::kAddMul, true);
 	
 	return atmp;
 }
@@ -200,6 +241,7 @@ constr Parser::addMultiply(constr& exp)
 constr Parser::subToAdd(str& exp)
 {
 	str output = "";
+	str functionoutput = "";
 	
 	uint i = 0;
 	while(exp.length() != 0)
@@ -220,11 +262,18 @@ constr Parser::subToAdd(str& exp)
 		}
 		
 		exp.erase(0, 1);
-//		cout << "exp: " << exp << endl;
-//		cout << "output: " << output << endl;
+		
+		if(classvars_.debugwin)
+		{
+			functionoutput += "Expression: " + exp + "\n";
+			functionoutput += "Output: " + output + "\n\n";
+		}
 		
 		i++;
 	}
+	
+	if(classvars_.debugwin)
+		signal_debugoutput.emit(functionoutput, FunctionDebug::kSubToAdd, true);
 	
 	return output;
 }
@@ -232,11 +281,10 @@ constr Parser::subToAdd(str& exp)
 cvstr Parser::toRPN(cvstr& exp)
 {
 	//Todo: Make function that checks the validity of equation
-	//Todo: const
 	vstr output;
 	std::stack<str> stk;
 	constr stack_init = kStack_Init();
-	bool debug = false;
+	str outputstr = "";
 	
 	auto func_update = [&output, &stk]() mutable { output.push_back(stk.top()); stk.pop(); }; //lambda
 	
@@ -277,12 +325,12 @@ cvstr Parser::toRPN(cvstr& exp)
 			output.push_back(token);
 		}
 		
-		if(debug)
+		if(classvars_.debugwin == true)
 		{
-//			cout << "String: " << vStrToStr(b, i+1) << endl;
-//			cout << "Queue: " << vStrToStr(bb) << endl;
-//			cout << "Stack: " << stackStrToStr(stk) << endl;
-//			cout << endl;
+			outputstr += "Expression: " + Util::vStrToStr(exp, i+1) + "\n";
+			outputstr += "Stack: " + Util::stackStrToStr(stk) + "\n";
+			outputstr += "Queue: " + Util::vStrToStr(output) + "\n";
+			outputstr += "\n";
 		}
 	}
 	
@@ -293,6 +341,9 @@ cvstr Parser::toRPN(cvstr& exp)
 		if(stk.top() == stack_init)
 			break;
 	}
+	
+	if(classvars_.debugwin == true)
+		signal_debugoutput.emit(outputstr, FunctionDebug::kRPN, true);
 	
 	return output;
 }
@@ -326,32 +377,7 @@ void Parser::test()
 
 void Parser::setExp(constr& expression)
 {
-	exp_=expression;
-}
-
-constr Parser::vStrToStr(const vstr& vec_str, int spos) const //spos = start position
-{
-	str str = "";
-	
-	for(uint i=spos; i<vec_str.size(); i++)
-	{
-		str += " " + vec_str.at(i); //space to show where tokens start and end
-	}
-	
-	return str;
-}
-
-constr Parser::stackStrToStr(std::stack<str>& stack_str) const
-{
-	str str = "";
-	
-	while(stack_str.size())
-	{
-		str += stack_str.top();
-		stack_str.pop();
-	}
-	
-	return str;
+	classvars_.exp = expression;
 }
 
 constr Parser::strReplace(str& str, char old, char snew)
@@ -363,10 +389,19 @@ constr Parser::strReplace(str& str, char old, char snew)
 
 constr Parser::parenthesisReplace(str& exp)
 {
+	str functionoutput = "";
+	
 	exp = strReplace(exp, '[', '(');
+	functionoutput += "Bracket Start: " + exp + "\n";
 	exp = strReplace(exp, ']', ')');
+	functionoutput += "Bracket End: " + exp + "\n";
 	exp = strReplace(exp, '{', '(');
+	functionoutput += "Brace Start: " + exp + "\n";
 	exp = strReplace(exp, '}', ')');
+	functionoutput += "Brace End: " + exp + "\n";
+	
+	if(classvars_.debugwin)
+		signal_debugoutput.emit(functionoutput, FunctionDebug::kParRep, true);
 	
 	return exp;
 }

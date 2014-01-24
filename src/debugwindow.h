@@ -28,24 +28,27 @@ public:
 	~DebugWindow();
 	void setOutputText(constr& text);
 	void appendOutputText(constr& text);
-	void addFunctionOutput(constr& text, FunctionDebug function);
+	void addFunctionOutput(constr& text, FunctionDebug function, bool procedure);
 	void setExpression(constr& expression);
+	DebugWindowSettings getDWSettings();
+	void setSettigns(const DebugWindowSettings& dwsettings);
 	
 protected:
-	bool checkRPNbtn();
-	bool checkTokenizebtn();
-	bool checkParRep();
-	bool checkSubToAdd();
-	bool checkAddMul();
-	bool checkCalc();
 	void onClear();
-	constr getFunctionBeginText(FunctionDebug function);
+	constr getFunctionBeginText(constr function);
 	void btnParRepClicked();
 	void btnAddMulClicked();
 	void btnSubToAddClicked();
 	void btnTokenizeClicked();
 	void btnRPNClicked();
 	void btnCalcClicked();
+	constr getProcedureBeginText(constr function);
+	void chkParRepClicked();
+	void chkAddMulClicked();
+	void chkSubToAddClicked();
+	void chkTokenizeClicked();
+	void chkRPNClicked();
+	void chkCalcClicked();
 	
 	Gtk::VBox boxmain_;
 	Gtk::ToggleButton btnrpn_;
@@ -80,8 +83,6 @@ protected:
 	Gtk::VBox vbox_calc_;
 	
 private:
-	void setupToolbar();
-	
 	static constr kAddMul_;
 	static constr kParRep_;
 	static constr kSubToAdd_;
@@ -89,6 +90,8 @@ private:
 	static constr kRPN_;
 	static constr kCalc_;
 	static constr kProcedure_;
+	
+	DebugWindowSettings dwsettings_;
 };
 
 } // namespace Gui
