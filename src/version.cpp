@@ -18,11 +18,11 @@ constr buildType(VersionType type)
 	switch(type)
 	{
 	case VersionType::kAlpha:
-		return "<b>Alpha</b>";
+		return "Alpha";
 	case VersionType::kBeta:
-		return "<b>Beta</b>";
+		return "Beta";
 	case VersionType::kStable:
-		return "<b>Stable</b>";
+		return "Stable";
 	default:
 		return "";
 	}

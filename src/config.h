@@ -25,7 +25,7 @@ public:
 	ConfigSettings parseConfig();
 	cint toStoi(constr num);
 	void updateConfig(ConfigSettings config);
-	void init(constr& working_dir, const bool debug);
+	void init(constr& working_dir, const bool debug, const Verbosity progverbose);
 	
 	static constr kFileName_;
 	static constr kFileExt_;
@@ -36,6 +36,7 @@ private:
 	void parseVars(constr varname, constr var);
 	
 	bool debug_;
+	Verbosity progverbose_;
 };
 
 namespace ConfigVar
@@ -57,6 +58,9 @@ constr kRPN = "RPN";
 constr kRPN_p = "RPN_p";
 constr kCalc = "Calc";
 constr kCalc_p = "Calc_p";
+constr kFractions = "Fractions";
+constr kLog = "Log";
+constr kColor = "Color";
 
 } // namespace Config
 

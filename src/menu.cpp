@@ -37,6 +37,8 @@ constr getMainMenu()
       </menu>
       <menu action="ViewMenu">
         <menuitem action="ViewDebugWin" />
+        <menuitem action="ViewLog" />
+        <menuitem action="ViewMessages" />
       </menu>
       <menu action="FractionsMenu">
         <menuitem action="FractionsGCD" />

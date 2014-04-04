@@ -21,6 +21,7 @@ constr Config::kFileName_ = Info::kProgName() + kFileExt_;
 Config::Config()
 {
 	debug_ = false;
+	progverbose_ = Verbosity::kError;
 }
 
 Config::~Config()
@@ -28,11 +29,15 @@ Config::~Config()
 	
 }
 
-void Config::init(constr& working_dir, const bool debug)
+void Config::init(constr& working_dir, const bool debug, const Verbosity progverbose)
 {
 	debug_ = debug;
+	progverbose_ = progverbose;
 	
-	kConfigFile_ = Util::getDirFromPath(working_dir) + "/" + kFileName_;
+	kConfigFile_ = working_dir + "/" + kFileName_;
+	
+	Util::Say say(debug_, progverbose_);
+	say.display("Config File: " + kConfigFile_, Verbosity::kDebug);
 	
 	if(! check())
 	{
@@ -199,6 +204,27 @@ void Config::parseVars(constr varname, constr var)
 		
 		config_.dwsettings.calc_p = varnum;
 	}
+	else if(svarname == kFractions)
+	{
+		if(varnum == kReturnError)
+			varnum = kfractions;
+		
+		config_.pwsettings.fractions = varnum;
+	}
+	else if(svarname == kLog)
+	{
+		if(varnum == kReturnError)
+			varnum = klog;
+		
+		config_.pwsettings.log = varnum;
+	}
+	else if(svarname == kColor)
+	{
+		if(varnum == kReturnError)
+			varnum = kcolor;
+		
+		config_.pwsettings.color = varnum;
+	}
 }
 
 cint Config::toStoi(constr num)
@@ -243,11 +269,14 @@ void Config::updateConfig(ConfigSettings config)
 	ccv rpn_p = {kRPN_p, Util::toString(config.dwsettings.rpn_p) };
 	ccv calc = {kCalc, Util::toString(config.dwsettings.calc) };
 	ccv calc_p = {kCalc_p, Util::toString(config.dwsettings.calc_p) };
+	ccv fractions = {kFractions, Util::toString(config.pwsettings.fractions) };
+	ccv log = {kLog, Util::toString(config.pwsettings.log) };
+	ccv color = {kColor, Util::toString(config.pwsettings.color) };
 
 	typedef std::vector<ConfigVars> configvars;
 
 	const configvars kConfig = {window_sizel, window_sizew, window_positionx, window_positiony, 
-		parrep, parrep_p, addmul, addmul_p, subtoadd, subtoadd_p, tokenize, tokenize_p, rpn, rpn_p, calc, calc_p};
+		parrep, parrep_p, addmul, addmul_p, subtoadd, subtoadd_p, tokenize, tokenize_p, rpn, rpn_p, calc, calc_p, fractions, log, color};
 	
 	str configstr = "";
 	

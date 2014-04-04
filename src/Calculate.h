@@ -35,7 +35,7 @@ private:
 	ClassVars classvars_;
 	
 public:
-	sigc::signal<void, constr&, const MessageState&, const Verbosity&> signal_say;
+	sigc::signal<void, constr&, const Verbosity&, const MessageState&> signal_say;
 	sigc::signal<void, constr&, FunctionDebug, bool> signal_debugoutput;
 };
 

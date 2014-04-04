@@ -42,6 +42,9 @@ void writeFileToDisk(constr& filepath, constr& data);
 constr getDirFromPath(constr& filepath);
 constr vStrToStr(const vstr& vec_str, int spos = 0);
 constr stackStrToStr(std::stack<str> stack_str);
+constr getFileContents(constr& file);
+void appendFile(constr& file, constr& text);
+constr getCWD();
 
 template<typename T>
 constr toString(T t)
@@ -83,15 +86,17 @@ constr vecToString(const std::vector<Type>& data)
 class Say
 {
 public:
-	Say(const bool debug);
-	void display(constr& message, const MessageState& msg_state = MessageState::kNone);
+	Say(const bool debug, const Verbosity progverbose = Verbosity::kInfo);
+	void display(constr& message, const Verbosity& verbosity = Verbosity::kError, const MessageState& msg_state = MessageState::kNone);
 	void termDisplay(constr& message, const MessageState& msg_state = MessageState::kNone);
+	static messages_t messages_;
 	
 private:
 	constr termColor(const TerminalColors& foreground, const TerminalColors& background = TerminalColors::kNone, const bool bold = false);
 	
 private:
 	const bool debug_;
+	const Verbosity progverbose_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////

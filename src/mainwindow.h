@@ -13,6 +13,9 @@
 #include "vars.h"
 #include "debugwindow.h"
 #include "config.h"
+#include "prefswindow.h"
+#include "Log.h"
+#include "messagewindow.h"
 
 namespace Math
 {
@@ -49,9 +52,10 @@ public:
 	MainWindow(cint argc, char** argv);
 	virtual ~MainWindow();
 	void changeStatus(constr& message, const MessageState& msg_state = MessageState::kNone);
-	void say(constr& message, const MessageState& msg_state = MessageState::kNone, const Verbosity& verbosity = Verbosity::kError); //Verbose error is lowest besides no verbosity
+	void say(constr& message, const Verbosity& verbosity = Verbosity::kError, const MessageState& msg_state = MessageState::kNone); //Verbose error is lowest besides no verbosity
 	void newTab();
 	bool saveOutput(constr& file);
+	void setWinCount(cint wincount);
 	
 protected:
 	bool outputEvent(GdkEvent*);
@@ -81,6 +85,9 @@ protected:
 	bool fractionsEnabledEventLeave(GdkEventCrossing*);
 	bool tabRemoved(GdkEvent*);
 	bool mainWindowDrag(GdkEventFocus*);
+	void onInsertMain();
+	void onPaste(const Glib::RefPtr<Gtk::Clipboard>&);
+	void showMessageWindow();
 	
 	Gtk::Box box_main_;
 	Gtk::Box* box_tabs_;
@@ -113,8 +120,12 @@ protected:
 	Glib::RefPtr<Gtk::Action> menuitem_calculate_;
 	Gtk::AboutDialog about_window_;
 	Glib::RefPtr<Gdk::Pixbuf> window_icon_;
-	DebugWindow* debugwin_;
+	DebugWindow debugwin_;
 	MainWindow* mainwindow_;
+	Glib::RefPtr<Gtk::TextBuffer::Tag> tag_num_ = Gtk::TextBuffer::Tag::create();
+	Glib::RefPtr<Gtk::TextBuffer::Tag> tag_sym_ = Gtk::TextBuffer::Tag::create();
+	Glib::RefPtr<Gtk::TextBuffer::TagTable> tagtable_ = Gtk::TextBuffer::TagTable::create();
+	MessageWindow msgwindow_;
 	
 private:
 	void processArgs(cint argc, const char* const* argv);
@@ -159,6 +170,12 @@ private:
 	void setSettings();
 	void enableTabItems(const bool enable);
 	void saveSettings();
+	void showPrefsWindow();
+	void prefsWindowApply(PrefsWindowSettings prefswinsettings);
+	WinPos getCenterPos(const Gtk::Window& window);
+	void colorText(txtbuff buffer);
+	void applyTag(txtbuff buffer, const Glib::RefPtr<Gtk::TextBuffer::Tag>&, cint pos);
+	void viewLog();
 	
 	static constr kexp_marker_ ;
 	static constr ktab_label_;
@@ -170,6 +187,8 @@ private:
 	cint kargc_; //used for new window arguments
 	char** kargv_;
 	static constexpr cint kdefault_value_ = -1;
+	static constr klog_;
+	str working_dir_;
 	
 	
 	bool debug_ = false;
@@ -192,7 +211,11 @@ private:
 	Config config_;
 	bool debugwin_enabled_ = false;
 	DebugWindowSettings dwsettings_;
-	int wincount = 0;
+	int wincount_ = 0;
+	Glib::RefPtr<Gtk::Application> app_;
+	PrefsWindow prefswindow_;
+	Log log_;
+	bool color_ = DefaultConfigVars::kcolor;
 };
 
 } //namespace Gui

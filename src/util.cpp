@@ -10,6 +10,8 @@
 #include <fstream>
 #include <algorithm>
 
+#include <unistd.h>
+
 #include "util.h"
 
 namespace Math
@@ -221,19 +223,70 @@ constr stackStrToStr(std::stack<str> stack_str) //need a copy so we don't change
 	return str;
 }
 
+constr getFileContents(constr& file)
+{
+	std::ifstream ifile(file);
+	
+	if(! ifile.is_open())
+	{
+		Error err(false);
+		err.sayError(Error::ErrorName::NoFileOpen, file, __func__);
+		return "";
+	}
+	
+	str line, contents;
+	
+	while(getline(ifile, line))
+	{
+		contents += line + "\n";
+	}
+	
+	ifile.close();
+	
+	return contents;
+}
+
+void appendFile(constr& file, constr& text)
+{
+	str contents = getFileContents(file);
+	
+	contents += text;
+	
+	writeFileToDisk(file, contents);
+}
+
+constr getCWD()
+{
+	char* buff[1000] = {};
+	constr cwd = getcwd(*buff, 1000);
+	free(*buff);
+
+	return cwd;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////
 //Class Say
 ///////////////////////////////////////////////////////////////////////////////////////
 
-Say::Say(const bool debug) : debug_(debug) {}
+messages_t Say::messages_;
+Say::Say(const bool debug, const Verbosity progverbose) : debug_(debug), progverbose_(progverbose) {}
 
-void Say::display(constr& message, const MessageState& msg_state)
+void Say::display(constr& message, const Verbosity& verbosity /*= Verbosity::kError */, const MessageState& msg_state /* = MessageState::kNone */)
 {
-	//mw_.updateStatus(message, msg_state);
+	Message msg;
+	msg.verbosity = verbosity;
+	msg.message = message;
+	messages_.push_back(msg);
+	
+	if(verbosity > progverbose_)
+		return;
 	
 	MessageState new_state = msg_state;
 	if(debug_)
 		new_state = MessageState::kNone;
+	
+	if(verbosity == Verbosity::kDebug && !debug_)
+		return;
 	
 	termDisplay(message, new_state);
 }
@@ -350,7 +403,7 @@ void Error::showThrow(const ErrorName& error_name, constr opt_text, constr funct
 void Error::sayError(const ErrorName& error_name, constr opt_text, constr function)
 {
 	Say say(debug_);
-	say.display(Error::getMessage(error_name, opt_text, function), MessageState::kError);
+	say.display(Error::getMessage(error_name, opt_text, function), Verbosity::kError, MessageState::kError);
 }
 
 } //namespace Util

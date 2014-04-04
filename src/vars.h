@@ -31,6 +31,9 @@ typedef long double longd;
 typedef const longd clongd;
 typedef const bool cbool;
 
+struct Message;
+typedef std::vector<Message> messages_t;
+
 constexpr cint kReturnError = -1;
 
 template <typename Type, typename Output> //T=type, O=output
@@ -61,7 +64,7 @@ enum class MessageState
 	kNone, kInfo, kWarning, kError
 };
 
-enum class Verbosity
+enum class Verbosity : uint
 {
 	kNone, kError, kInfo, kDebug
 };
@@ -158,6 +161,9 @@ constexpr cbool krpn = false;
 constexpr cbool krpn_p = false;
 constexpr cbool kcalc = false;
 constexpr cbool kcalc_p = false;
+constexpr cbool kfractions = true;
+constexpr cbool klog = true;
+constexpr cbool kcolor = true;
 
 } // namespace DefaultConfigVars
 
@@ -185,6 +191,13 @@ struct DebugWindowSettings
 	bool calc_p = kcalc_p;
 };
 
+struct PrefsWindowSettings
+{
+	bool fractions = kfractions;
+	bool log = klog;
+	bool color = kcolor;
+};
+
 struct ConfigSettings
 {
 	int winposx = kwinposx;
@@ -192,6 +205,13 @@ struct ConfigSettings
 	int winsizel = kwinsizel;
 	int winsizew = kwinsizew;
 	DebugWindowSettings dwsettings;
+	PrefsWindowSettings pwsettings;
+};
+
+struct Message
+{
+	Verbosity verbosity;
+	str message;
 };
 
 } // namespace Math
