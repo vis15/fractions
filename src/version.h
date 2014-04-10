@@ -24,9 +24,10 @@ enum VersionType
 inline constr kMajor() { return "0"; }
 inline constr kMinor() { return "0"; }
 inline constr kRevision() { return "0"; }
-inline constr kBuild() { return "18"; }
+inline constr kBuild() { return "19"; }
 constr buildType(VersionType);
 inline constr kGetBuildType() { return buildType(kAlpha); }
+inline constr kReleaseDate() { return __DATE__; }
 
 } // namespace Version
 

@@ -377,6 +377,7 @@ void MainWindow::newTab()
 	txt_view_i_->set_border_width(2);
 	txt_view_i_->set_margin_right(1);
 	txt_view_i_->set_pixels_above_lines(2);
+	txt_view_i_->override_font(font);
 	
 	buffer_input_ = Gtk::TextBuffer::create(tagtable_);
 	txt_view_i_->set_buffer(buffer_input_);
@@ -597,6 +598,7 @@ void MainWindow::arrowPressed(txtbuff& buffer_input, cint num, bool exp) //true 
 	
 	increaseHistoryPosition(num);
 	setHistory(buffer_input, exp);
+	colorText(buffer_input);
 }
 
 void MainWindow::increaseHistoryPosition(cint num)
@@ -1066,6 +1068,7 @@ void MainWindow::showAboutWindow()
 	std::vector<Glib::ustring> authors = {"Timothy O'Connor"};
 	about_window_.set_authors(authors);
 	about_window_.set_logo_default();
+	about_window_.set_transient_for(*this);
 	about_window_.signal_response().connect(sigc::mem_fun(*this, &MainWindow::onAboutResponse));
 	
 	about_window_.show();
@@ -1074,7 +1077,7 @@ void MainWindow::showAboutWindow()
 constr MainWindow::getVersion()
 {
 	return "<b>" + Version::kMajor() + "." + Version::kMinor() + "." + Version::kRevision() + "</b> build: " + Version::kBuild() + 
-			"\nBuild Release: " + Version::kGetBuildType();
+			"\nBuild Release: " + Version::kGetBuildType() + "\nRelease Date: " + Version::kReleaseDate();
 }
 
 void MainWindow::onAboutResponse(int response)

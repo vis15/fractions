@@ -24,6 +24,13 @@ namespace Parser
 class Parser
 {
 public:
+	struct soutput
+	{
+		ExpType exptype;
+		vstr voutput;
+	};
+	
+public:
 	Parser(ClassVars classvars);
 	virtual ~Parser();
 	cvstr parse();

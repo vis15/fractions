@@ -214,6 +214,11 @@ struct Message
 	str message;
 };
 
+enum class ExpType : uint
+{
+	kArithmetic, kHexToDec, kDecToHex
+};
+
 } // namespace Math
 
 #endif /* VARS_H_ */
